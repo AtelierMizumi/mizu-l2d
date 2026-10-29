@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# fetch-model.sh <model-name> [dest-dir]
+# fetch-model.sh <model-name> [dest-dir] [--bg]
 # Download one Azur Lane Live2D model + its interaction data.
 #
 # Primary source: nagami.moe public CDNs (same extraction lineage as
@@ -8,8 +8,17 @@
 # IP — personal, local use only.
 set -euo pipefail
 
-MODEL="${1:?usage: fetch-model.sh <model-name> [dest-dir]}"
-DEST="${2:-$HOME/.local/share/mizu/l2d/$MODEL}"
+MODEL=""
+DEST=""
+WITH_BG=0
+for arg in "$@"; do
+    case "$arg" in
+        --bg) WITH_BG=1 ;;
+        *) if [ -z "$MODEL" ]; then MODEL="$arg"; else DEST="${DEST:-$arg}"; fi ;;
+    esac
+done
+: "${MODEL:?usage: fetch-model.sh <model-name> [dest-dir] [--bg]}"
+DEST="${DEST:-$HOME/.local/share/mizu/l2d/$MODEL}"
 UA="mizu-l2d-fetch/0.2"
 ASSETS="https://azlassets.nagami.moe/EN"
 DATA="https://data.nagami.moe/live2d/EN"
@@ -63,5 +72,29 @@ curl -fsSL -A "$UA" -o "$DEST/$MODEL.animator.json" \
 curl -fsSL -A "$UA" -o "$DEST/skins.json" \
     "$DATA/skins/$MODEL.json?v=1" 2>/dev/null \
     || { rm -f "$DEST/skins.json"; echo "no skins.json"; }
+
+# scene background (shared by all models; resolved from the cached mapping)
+if [ "$WITH_BG" = 1 ]; then
+    MAPPING="$HOME/.local/share/mizu/data/l2d_mapping.json"
+    mkdir -p "$(dirname "$MAPPING")"
+    [ -f "$MAPPING" ] || fetch "$DATA/l2d_mapping.json" "$MAPPING"
+    BG=$(python3 - "$MAPPING" "$MODEL" <<'EOF'
+import json, sys
+with open(sys.argv[1]) as f:
+    for ship in json.load(f).values():
+        for skin in ship.get('skins', []):
+            if skin.get('prefab') == sys.argv[2] and skin.get('bg'):
+                print(skin['bg'])
+                raise SystemExit
+EOF
+)
+    if [ -n "$BG" ]; then
+        BG_DIR="$HOME/.local/share/mizu/l2d/bg"
+        mkdir -p "$BG_DIR"
+        [ -f "$BG_DIR/$BG.png" ] || fetch "$ASSETS/bg/star_level_bg_$BG.png" "$BG_DIR/$BG.png"
+    else
+        echo "no bg in mapping for $MODEL"
+    fi
+fi
 
 echo "done -> $DEST"

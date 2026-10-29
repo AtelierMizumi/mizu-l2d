@@ -1,8 +1,8 @@
 # STATUS — state ledger (update at the END of every work unit)
 
-Last updated: 2026-10-29
-Last agent: ZCode (R1a.1 render + model import unit)
-Next unit: **R1a.2** (model scene background, PLAN §8 R1). R1a.1 committed.
+Last updated: 2026-10-30
+Last agent: ZCode (R1a.2 background + full-catalog import/verification)
+Next unit: **R1a.3** (consume skins.json offset/scale, PLAN §8 R1). R1a.2 committed.
 Handover for continuation: **docs/HANDOVER.md** (read it first; it lists owner-only steps).
 
 ## Done (verified)
@@ -34,6 +34,33 @@ Handover for continuation: **docs/HANDOVER.md** (read it first; it lists owner-o
   `?model=<prefab>` (default aersasi_3). Real-browser checks: aersasi_3
   (82 groups) and lisailiu_3 load with no console errors, render correctly
   (screenshot), and idle motion starts and animates when the page ticks.
+- R1a.2 done (verified): scene background behind the model. `findBackgroundUrl`
+  resolves prefab → skins[].bg from the mirrored mapping; bg fetched by
+  `fetch-model.sh --bg` into `assets/bg/<id>.png` (URL is
+  `bg/star_level_bg_<id>.png` — PLAN §5 corrected). Sprite is cover-fit
+  behind the model with an idempotent fit (see discoveries: the first cut
+  re-scaled from the already-scaled sprite width and shrank the bg on every
+  resize event — caught by the full-catalog sweep, not by spot checks).
+- Full-catalog import (owner-directed, 2026-10-30): all 239 prefabs from
+  `l2d_mapping.json` imported via `fetch-model.sh` into
+  `~/.local/share/mizu/l2d/` (5.3 GB, 9440 files, 76 unique bgs, 0
+  failures). Note: this is a one-off verification sweep of the pipeline; the
+  product remains download-on-demand (owner goal 2026-10-29, no mass
+  download in the UI).
+- Full-catalog verification sweep (owner-directed, final pass 2026-10-30):
+  every one of the 239 models loaded in a real browser: model3.json+textures
+  load, bg file matches the mapping, bg sprite covers the full canvas, the bg
+  texture renders real pixels (verified with the model hidden — bg-only
+  corner patches), idle motion starts and animates (parameter delta > 0
+  across driven updates). 239/239 PASS; screenshots in
+  `~/.local/share/mizu/verify-shots/`. Three product bugs were found and
+  fixed along the way (see discoveries: fitBackground idempotency, the
+  0.4.0 idle-reservation deadlock, and the hidden-tab texture-upload race).
+  12 models legitimately render with black surrounds — the model mesh
+  contains its own scene card/backdrop (verified against the nagami site
+  for anninvwang_2: identical rendering). wuqi_3 (Azuma — Career Counseling)
+  owns a full-canvas dark classroom scene (atlas confirmed); worth an
+  eyeball against the site during R1c.1 calibration.
 
 ## In progress
 - S0-perf (SPEC §12): scripts in `spikes/s0-perf/` (committed in `cd21547`). Side A
@@ -120,3 +147,34 @@ Handover for continuation: **docs/HANDOVER.md** (read it first; it lists owner-o
     so motion start and param animation read as frozen. Drive
     `internalModel.update(dt, now)` manually when probing time-based state;
     do not conclude from wall-clock sampling that nothing animates.
+- 2026-10-30 R1a.2 + catalog sweep unit:
+  - `fitBackground` was non-idempotent: it scaled from `sprite.width` (which
+    already includes the current scale), so every resize event shrank the bg
+    back to native size centered in the viewport. Bgs larger than the
+    viewport masked the bug visually. Fixed by scaling from the texture's
+    natural size. Found only because the sweep forced resizes per model.
+  - pixi-live2d-display 0.4.0 deadlock: `state.complete()` clears
+    `currentGroup` but nothing clears `reservedIdleGroup` when a reserved
+    motion is never started, so `shouldRequestIdleMotion()` stays false and
+    `reserve()` rejects every new idle request ("already reserved") — auto
+    idle stops permanently. Watchdog in main.js clears the stale reservation
+    whenever no motion is current.
+  - Hidden-tab texture race: `texImage2D` on an HTMLImageElement that the
+    decoder has not finished uploads an OPAQUE-BLACK GL texture, and the base
+    texture is marked uploaded so it never re-uploads — the bg then renders
+    black forever (~7% of catalog bgs). `img.decode()` is itself deferred
+    indefinitely in hidden tabs, so the fix loads bgs via
+    `fetch` + `createImageBitmap` (deterministic decode, ImageBitmapResource).
+  - Probe toolkit notes: PIXI `renderer.plugins.extract.canvas(stage)` gives
+    deterministic in-page screenshots (CDP surface capture flakes under
+    load); driving `internalModel.update(dt, now)` needs a follow-up await
+    tick before motion state is observable (startMotion is async); Chromium
+    throttles rAF to ~0 in occluded tabs so the ticker-driven watchdog and
+    renderer must be exercised manually during probes.
+  - Scene-card models: some skins (anninvwang_2, ajiier_3, wuqi_3, ...)
+    contain their own opaque backdrop/panel inside the mesh; the mapping bg
+    is invisible behind them and black corners in screenshots are model art,
+    not bugs. Verified against https://azurlane.nagami.moe/live2d-viewer.
+  - Catalog: 239 prefabs / 76 unique bgs / 5.3 GB mirrored under
+    `~/.local/share/mizu/l2d/`. Import and verification artifacts in
+    /tmp/mizu-import (logs, probe JSONL) are ephemeral.

@@ -135,7 +135,10 @@ personal local use only):
 - Model assets: `https://azlassets.nagami.moe/EN/live2d/<prefab>/...`
 - Data layer: `https://data.nagami.moe/live2d/EN/l2d_mapping.json`,
   `.../EN/index.json`, `.../EN/skins/<prefab>.json`
-- Backgrounds: `https://azlassets.nagami.moe/EN/bg/<bg_id>.png`
+- Backgrounds: `https://azlassets.nagami.moe/EN/bg/star_level_bg_<bg_id>.png`
+  (verified 2026-10-29 — the bare `<bg_id>.png` path in the earlier note was
+  wrong and 404s; the site applies the image as the stage container's CSS
+  background)
 - Cubism Web Core (the exact build the site renders with):
   `https://azurlane.nagami.moe/live2dcubismcore.min.js` — mirror it locally;
   do not bundle a different version without re-verifying rendering.
