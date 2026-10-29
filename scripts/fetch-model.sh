@@ -23,7 +23,7 @@ fetch() { # fetch <url> <dest-file>
 
 fetch "$ASSETS/live2d/$MODEL/$MODEL.model3.json" "$DEST/$MODEL.model3.json"
 
-# enumerate every file the model settings reference (textures, motions, physics)
+# enumerate every file the model settings reference (moc, textures, motions, physics)
 python3 - "$DEST/$MODEL.model3.json" "$DEST" "$ASSETS/live2d/$MODEL" "$UA" <<'EOF'
 import json, pathlib, subprocess, sys
 
@@ -32,12 +32,18 @@ s = json.load(open(settings_path))
 ref = s["FileReferences"]
 
 def get(rel):
+    # model3.json comes from a third-party CDN: never write outside the model dir
+    rp = pathlib.PurePosixPath(rel)
+    if not rel or rp.is_absolute() or ".." in rp.parts:
+        sys.exit(f"refusing unsafe path in model3.json: {rel!r}")
     p = pathlib.Path(dest) / rel
     p.parent.mkdir(parents=True, exist_ok=True)
     url = f"{base}/{rel}"
     print(f"fetch {rel}")
     subprocess.run(["curl", "-fsSL", "--retry", "3", "-A", ua, "-o", str(p), url], check=True)
 
+if ref.get("Moc"):
+    get(ref["Moc"])
 for t in ref.get("Textures", []):
     get(t)
 for group in (ref.get("Motions") or {}).values():

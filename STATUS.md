@@ -19,7 +19,9 @@ Next unit: **R0.2** (see docs/PLAN.md §8). R0.1 committed as the baseline.
 - `scripts/fetch-model.sh` rewritten for the nagami CDNs (tested).
 
 ## In progress
-- nothing
+- S0-perf (SPEC §12): scripts in `spikes/s0-perf/` (uncommitted). Side A
+  `webkit_bench_gtk4.py` needs `webkitgtk-6.0`. Side B `native_measure.sh` needs
+  a live Wayland session. Both must be run by the owner on the desktop.
 
 ## Next
 - R0.2 → R0.3 → R1a.1 (PLAN §8). S0-perf runs before R2 (SPEC §12).
@@ -53,3 +55,17 @@ Next unit: **R0.2** (see docs/PLAN.md §8). R0.1 committed as the baseline.
 - 2026-10-29 owner approved: decisions D-L1, D-L2, D-N1, D-S1, D-P1 recorded in SPEC §12
   (recommendations accepted). R0.1 committed with explicit paths. `.claude/` stays
   untracked until the owner decides. S0-perf is the next measurement, before R2.
+- 2026-10-29 security review of R0.1 (automated finding, model_runtime.cpp), fixed in the
+  working tree, NOT committed (needs owner OK):
+  - moc3 now loads with `LoadModel(moc, msz, true)`. Cubism Core's default is no check.
+    Verified: the real abeikelongbi_3 moc3 passes `csmHasMocConsistency`; truncated and
+    corrupted copies fail.
+  - Every model3.json reference (texture, physics, motion) must be relative with no `..`
+    (`is_safe_rel`). A standalone test of the helper passes 9/9.
+  - Still open: `read_all` has no size cap, and stb decoders parse untrusted PNGs. Address
+    with the content-pack limits in SPEC §4.3 before any public release.
+- 2026-10-29 bug: `scripts/fetch-model.sh` never fetched `FileReferences.Moc`. aersasi_3
+  has no moc3 locally, so the native runtime cannot load it (and PLAN R1a.1 uses it).
+  Fixed in the working tree. The same script also refuses `..` or absolute paths from the
+  remote model3.json. Owner must re-run `bash scripts/fetch-model.sh aersasi_3` to fetch
+  the moc3. The sandbox blocks azlassets.nagami.moe, so the URL is unverified here.

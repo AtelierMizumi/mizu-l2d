@@ -25,6 +25,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <utility>
 
@@ -48,6 +49,15 @@ static std::string join_path(const std::string &a, const std::string &b) {
     if (b.empty()) return a;
     if (b[0] == '/' || a.empty()) return b;
     return a + "/" + b;
+}
+
+// model3.json references come from third-party packs: keep each one inside the model dir.
+static bool is_safe_rel(const std::string &p) {
+    std::filesystem::path rel(p);
+    if (p.empty() || rel.is_absolute() || rel.has_root_directory()) return false;
+    for (const auto &part : rel)
+        if (part == "..") return false;
+    return true;
 }
 
 ModelAsset::~ModelAsset() {
@@ -90,11 +100,12 @@ std::shared_ptr<ModelAsset> ModelRuntime::load(const std::string &dir) {
     csmInt32 n = asset->setting->GetTextureCount();
     for (csmInt32 i = 0; i < n; i++) {
         std::string tex = asset->setting->GetTextureFileName(i);
-        std::string path = tex.find('/') != std::string::npos
-                               ? join_path(dir, tex)
-                               : join_path(dir, join_path(asset->setting->GetTextureDirectory(), tex));
+        std::string rel = tex.find('/') != std::string::npos
+                              ? tex
+                              : join_path(asset->setting->GetTextureDirectory(), tex);
+        std::string path = join_path(dir, rel);
         int w, h, comp;
-        unsigned char *px = stbi_load(path.c_str(), &w, &h, &comp, 4);
+        unsigned char *px = is_safe_rel(rel) ? stbi_load(path.c_str(), &w, &h, &comp, 4) : nullptr;
         if (!px) {
             LOGW("model: texture %s failed to load", path.c_str());
             asset->textures.push_back(0);
@@ -142,7 +153,7 @@ std::shared_ptr<ModelAsset> ModelRuntime::load(const std::string &dir) {
 
     // physics buffer (shared; instances create stateful CubismPhysics from it)
     const char *phys = asset->setting->GetPhysicsFileName();
-    if (phys && phys[0]) {
+    if (phys && phys[0] && is_safe_rel(phys)) {
         asset->phys_buf = read_csm_file(join_path(dir, phys), &asset->phys_size);
     }
 
@@ -155,6 +166,7 @@ std::shared_ptr<ModelAsset> ModelRuntime::load(const std::string &dir) {
             std::string mf = asset->setting->GetMotionFileName(group.c_str(), j);
             if (!mf.empty() && mf.find('/') == std::string::npos)
                 mf = "motions/" + mf;
+            if (!is_safe_rel(mf)) continue;
             csmSizeInt msz = 0;
             csmByte *mb = read_csm_file(join_path(dir, mf), &msz);
             if (!mb) continue;
@@ -181,7 +193,7 @@ bool MizuModel::load(std::shared_ptr<ModelAsset> asset, const InteractionConfig 
     csmByte *moc = read_csm_file(join_path(a_->dir, a_->name + ".moc3"), &msz);
     if (!moc) { LOGE("model: moc3 read failed"); return false; }
     instance_buffers_.push_back(moc);
-    LoadModel(moc, msz);
+    LoadModel(moc, msz, true);  // moc3 is third-party data: let Core verify it before use
     if (!_model) { LOGE("model: LoadModel failed"); return false; }
 
     if (a_->phys_buf) LoadPhysics(a_->phys_buf, a_->phys_size);
