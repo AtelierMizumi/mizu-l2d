@@ -61,8 +61,8 @@ Goal:
 - Smoothness: vsync-driven, idle fps ramp, resource discipline
   (< ~400 MB resident) — measured, not assumed.
 
-Non-goals: multi-model scenes, sound/voice (parked), Windows/macOS, X11,
-public distribution of assets.
+Non-goals: multi-model scenes, Windows/macOS, X11, public distribution of
+assets. (Sound/voice moved into scope as R1d, 2026-10-30.)
 
 ## 2. Current state (verified 2026-10-29)
 
@@ -381,6 +381,21 @@ S = <1 session, M = ~1 session, L = plan for 2+ sessions with commit points.
    (download-on-demand), switch model without reload bugs. *Accept:* switch
    between gaoxiong_7 and abeikelongbi_3 live; no texture/VRAM leak across 10
    switches (measure via `performance.memory` / renderer info + process RSS).
+   *Implemented 2026-10-30 (picker.js, scripts/serve.py); see STATUS.md.*
+10. `R1d` Dialogue: `scripts/build-words.py` writes `web/data/words/<prefab>.json`
+   (`{key: {line, audio}}`) for the L2D keys touch, touch2, headtouch, main1–4,
+   login, home, mission, mission_complete, mail. Source: Fernando2603/AzurLane
+   `voiceline.json` (EN lines and .ogg links) plus AzurLaneLuaScripts
+   `ship_skin_template_sublist` (prefab→skin id; name-join fallback). Runtime
+   `web/dialogue.js`: a bubble at the bottom centre (3.5 s, cooldown 2 s, no
+   repeat of the previous chatter line). Mapping: touch_head→headtouch,
+   touch_body→touch, touch_special→touch2, main_N→mainN. `login` plays on arrival.
+   Chatter picks main1–4 every 3–8 min while the tab is visible. Mute and
+   chatter toggles persist per prefab (defaults: unmuted, chatter on; wallpaper
+   mode mutes, R2). Audio is streamed from the repo's raw URL (404 → text only).
+   *Accept:* gaoxiong_7 login on load; rangbaer_4 head tap → headtouch line and
+   audio; rangbaer_3 (no headtouch key) head tap → motion only, no bubble; mute
+   and chatter persist across reload; chatter fires with short intervals.
 
 ### R2 — embed as the wallpaper (M–L)
 1. `R2a.1` Install webkitgtk-6.0 + gtk4-layer-shell (GTK4 pair); write

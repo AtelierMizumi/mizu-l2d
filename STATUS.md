@@ -1,8 +1,8 @@
 # STATUS — state ledger (update at the END of every work unit)
 
 Last updated: 2026-10-30
-Last agent: Claude (R1a.3, R1a.5 placement editor and R1c.2 picker, tested on gaoxiong_7 and abeikelongbi_3)
-Next unit: **R1d** (dialogue: bubble + voice, see the pasted unit 3 plan). R1a.5 and R1c.2 done.
+Last agent: Claude (R1a.3, R1a.5, R1c.2 and R1d; tested on gaoxiong_7, rangbaer_3/4, abeikelongbi_3, aidang_2, wuqi_3)
+Next unit: **R2** (wallpaper embed, PLAN §8). R1 is done. Open: the wallpaper mode must mute (R1d).
 Handover for continuation: **docs/HANDOVER.md** (read it first; it lists owner-only steps).
 Test model (owner, 2026-10-30): **gaoxiong_7** replaces aersasi_3 (Alsace, broken) for all
 tests and screenshots; the web viewer's default `?model=` is now gaoxiong_7. See PLAN §9.
@@ -119,6 +119,34 @@ tests and screenshots; the web viewer's default `?model=` is now gaoxiong_7. See
     VRAM measurement; a profiler run would be needed to settle it.
   - Data fix: unresolved `{namecode:N}` CN names are stripped from display and
     search.
+- Security follow-up (automated review of 1a00703): `/api/download` is now
+  POST-only and needs `X-Mizu-Action: download`. Host must be
+  127.0.0.1/localhost:<port>, Origin must be same-origin, and Sec-Fetch-Site
+  cross-site gets 403 (curl-verified: GET 404, no header 403, bad Host 403,
+  foreign Origin 403, cross-site 403, bad prefab 400, accepted POST streams to
+  `[exit 0]`).
+- R1d done (verified): `scripts/build-words.py` writes `web/data/words/` (239
+  files, gitignored). Prefab→skin id: 217 via the Lua prefab field (matched
+  case-insensitively, since Lua has names like "yuekechengII_3"), 22 via a name
+  join with skin.json (gid + EN name). Three prefabs stay ambiguous (antu_2,
+  mojiaduoer_4, jinluhao_3): their name-matched ids have identical voice sets,
+  so the lowest id is taken. Lines per key: touch 228, touch2 216, headtouch
+  101, main1 238, main2 238, main3 239, main4 39, login 235, home 221, mission 79,
+  mission_complete 65, mail 54. `web/dialogue.js`: bubble, cooldown, chatter,
+  mute and chatter toggles. Browser-verified:
+  - gaoxiong_7 login line on load with login.ogg requested.
+  - rangbaer_4 head tap → headtouch line, headtouch.ogg 200, motion fired,
+    bubble hides after 3.5 s.
+  - rangbaer_3 head tap → motion only, no bubble (no headtouch key).
+  - mute and chatter persist across reload (`mizu.settings.<prefab>`).
+  - muted → text shown, no audio request.
+  - chatter scheduler (200–400 ms test interval) shows a main line on its own.
+  - cooldown: allowed → blocked within 2 s → allowed after 2 s.
+  - missing audio (404) → text still shown, no exception.
+  - Plan deviation: gaoxiong_7's drags config has no touch_head/body/special
+    zones (only touch_idle* and touch_drag*), so its taps stay silent. The head
+    tap test uses rangbaer_4, which has the head zone and the headtouch key.
+    aersasi_3 was not used.
 - Leftover (owner to delete): `~/.local/share/mizu/verify-bak/` holds a
   duplicate of aidang_2 used for the byte comparison. The agent's `rm` was
   denied, so it is still there.
@@ -129,7 +157,7 @@ tests and screenshots; the web viewer's default `?model=` is now gaoxiong_7. See
   a live Wayland session. Both must be run by the owner on the desktop.
 
 ## Next
-- R1d dialogue (bubble + voice, build-words.py). S0-perf runs before R2 (SPEC §12).
+- R2 wallpaper embed (PLAN §8). S0-perf runs before R2 (SPEC §12).
 
 ## Blockers / open questions
 - `skins.json` scale/offset unit semantics unknown (resolved empirically in
