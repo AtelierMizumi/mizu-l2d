@@ -131,6 +131,9 @@
       font: 12px/1.4 system-ui, sans-serif; padding: 3px 10px; border-radius: 10px;
       box-shadow: 0 2px 10px rgba(30, 42, 60, .18);
     }
+    /* wallpaper mode (?wall=1, R2): the scene is the only thing on the desktop */
+    body.wall #tips-toggle, body.wall #tips-label, body.wall #view-reset, body.wall #voice-mute,
+    body.wall #voice-chatter, body.wall .picker-open, body.wall .picker-panel { display: none !important; }
   </style>
 </head>
 <body>

@@ -1,0 +1,275 @@
+#!/usr/bin/env python3
+"""mizu-l2d wallpaper host for niri and other wlr-layer-shell compositors (R2a).
+
+One GTK4 window per monitor, placed on the BACKGROUND layer by gtk4-layer-shell,
+anchored to all four edges, with a WebKitGTK 6.0 view that loads the web viewer
+(web/index.html?wall=1). Monitors are tracked for hotplug. A JSON-lines control
+socket in $XDG_RUNTIME_DIR runs the commands in SPEC §5.3 against every view.
+
+usage: wall/mizu-l2d-wall.py [--url URL] [--no-serve]
+  --url       page to load (default http://127.0.0.1:8787/?wall=1)
+  --no-serve  do not start scripts/serve.py when nothing listens on the port
+"""
+import argparse
+import atexit
+import json
+import os
+import socket
+import subprocess
+import sys
+import threading
+import urllib.parse
+from pathlib import Path
+
+LAYER_SHELL_LIB = "/usr/lib/libgtk4-layer-shell.so"
+
+
+def ensure_layer_shell_preload():
+    """gtk4-layer-shell must load before libwayland-client. A dynamically linked
+    Python loads libwayland through GTK first, so the library is preloaded by
+    re-executing once with LD_PRELOAD (see the gtk4-layer-shell linking notes)."""
+    preload = os.environ.get("LD_PRELOAD", "")
+    if "libgtk4-layer-shell" in preload or not Path(LAYER_SHELL_LIB).exists():
+        return
+    os.environ["LD_PRELOAD"] = f"{preload}:{LAYER_SHELL_LIB}" if preload else LAYER_SHELL_LIB
+    os.execv(sys.executable, [sys.executable, *sys.argv])
+
+
+ensure_layer_shell_preload()
+
+import gi  # noqa: E402
+
+gi.require_version("Gdk", "4.0")
+gi.require_version("Gtk", "4.0")
+gi.require_version("Gtk4LayerShell", "1.0")
+gi.require_version("WebKit", "6.0")
+from gi.repository import Gdk, Gio, GLib, Gtk, Gtk4LayerShell as LayerShell, WebKit  # noqa: E402
+
+ROOT = Path(__file__).resolve().parent.parent
+SERVE = ROOT / "scripts" / "serve.py"
+PROTOCOL_VERSION = 1
+DEFAULT_URL = "http://127.0.0.1:8787/?wall=1"
+JS_TIMEOUT_S = 5.0
+
+
+def socket_path():
+    runtime = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+    return Path(runtime) / "mizu-l2d-wall.sock"
+
+
+def port_open(host, port):
+    try:
+        with socket.create_connection((host, port), timeout=0.5):
+            return True
+    except OSError:
+        return False
+
+
+class WallApp(Gtk.Application):
+    def __init__(self, url, control):
+        super().__init__(application_id="dev.mizu.l2d.wall")
+        self.url = url
+        self.control = control
+        self.views = {}  # monitor connector name -> (window, view)
+
+    def do_activate(self):
+        display = Gdk.Display.get_default()
+        if display is None:
+            print("[wall] no display", file=sys.stderr)
+            self.quit()
+            return
+        monitors = display.get_monitors()
+        monitors.connect("items-changed", self.on_monitors_changed)
+        self.sync_monitors()
+        self.control.start(self)
+        self.hold()
+
+    def on_monitors_changed(self, *_):
+        self.sync_monitors()
+
+    def sync_monitors(self):
+        monitors = Gdk.Display.get_default().get_monitors()
+        current = {}
+        for i in range(monitors.get_n_items()):
+            mon = monitors.get_item(i)
+            current[self.monitor_key(mon)] = mon
+        for key in list(self.views):
+            if key not in current:
+                window, _view = self.views.pop(key)
+                print(f"[wall] monitor removed: {key}", flush=True)
+                window.destroy()
+        for key, mon in current.items():
+            if key not in self.views:
+                print(f"[wall] monitor added: {key}", flush=True)
+                self.views[key] = self.make_surface(mon)
+
+    @staticmethod
+    def monitor_key(mon):
+        return mon.get_connector() or f"{mon.get_manufacturer()}-{mon.get_model()}"
+
+    def make_surface(self, monitor):
+        window = Gtk.Window(application=self)
+        window.set_decorated(False)
+        LayerShell.init_for_window(window)
+        # never fall back to a tiled toplevel on the user's workspace
+        if not LayerShell.is_layer_window(window):
+            raise SystemExit("[wall] window is not a layer surface; check gtk4-layer-shell linking")
+        LayerShell.set_namespace(window, "mizu-l2d")
+        LayerShell.set_layer(window, LayerShell.Layer.BACKGROUND)
+        LayerShell.set_monitor(window, monitor)
+        for edge in (LayerShell.Edge.TOP, LayerShell.Edge.BOTTOM,
+                     LayerShell.Edge.LEFT, LayerShell.Edge.RIGHT):
+            LayerShell.set_anchor(window, edge, True)
+        LayerShell.set_exclusive_zone(window, -1)
+        LayerShell.set_keyboard_mode(window, LayerShell.KeyboardMode.NONE)
+
+        view = WebKit.WebView()
+        # transparent page: the scene is the only thing on the background layer
+        view.set_background_color(Gdk.RGBA(red=0.0, green=0.0, blue=0.0, alpha=0.0))
+        settings = view.get_settings()
+        settings.set_enable_webgl(True)
+        window.set_child(view)
+        view.load_uri(self.url)
+        window.present()
+        return window, view
+
+    def views_list(self):
+        return [view for _window, view in self.views.values()]
+
+
+class Control:
+    """JSON-lines socket. Handlers run on the GTK thread; replies go back here."""
+
+    def __init__(self):
+        self.path = socket_path()
+        self.app = None
+
+    def start(self, app):
+        self.app = app
+        if self.path.exists():
+            self.path.unlink()
+        server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        server.bind(str(self.path))
+        server.listen(4)
+        atexit.register(lambda: self.path.exists() and self.path.unlink())
+        threading.Thread(target=self.accept_loop, args=(server,), daemon=True).start()
+        print(f"[wall] control socket {self.path}", flush=True)
+
+    def accept_loop(self, server):
+        while True:
+            conn, _ = server.accept()
+            threading.Thread(target=self.serve_conn, args=(conn,), daemon=True).start()
+
+    def serve_conn(self, conn):
+        with conn, conn.makefile("rwb") as stream:
+            for raw in stream:
+                reply = self.handle_line(raw)
+                stream.write((json.dumps(reply) + "\n").encode())
+                stream.flush()
+
+    def handle_line(self, raw):
+        try:
+            msg = json.loads(raw)
+        except json.JSONDecodeError:
+            return {"v": PROTOCOL_VERSION, "ok": False, "error": "bad json"}
+        if msg.get("v") != PROTOCOL_VERSION:
+            return {"v": PROTOCOL_VERSION, "ok": False, "error": "protocol version"}
+        done = threading.Event()
+        box = {}
+
+        def respond(reply):  # may be called on the GTK thread; never blocks it
+            box["reply"] = reply
+            done.set()
+
+        GLib.idle_add(self.run_on_main, msg, respond)
+        if not done.wait(JS_TIMEOUT_S + 1):
+            return {"v": PROTOCOL_VERSION, "ok": False, "error": "timeout"}
+        return {"v": PROTOCOL_VERSION, **box["reply"]}
+
+    def run_on_main(self, msg, respond):
+        try:
+            self.dispatch(msg.get("cmd"), msg, respond)
+        except Exception as err:  # the socket must never crash the host
+            respond({"ok": False, "error": str(err)})
+        return GLib.SOURCE_REMOVE
+
+    def dispatch(self, cmd, msg, respond):
+        views = self.app.views_list()
+        if cmd == "ping":
+            return respond({"ok": True, "pong": True, "outputs": len(views)})
+        if cmd == "status":
+            return respond({"ok": True, "outputs": sorted(self.app.views), "views": len(views)})
+        if cmd == "camera":
+            action = msg.get("action")
+            if action == "zoom":
+                call = f"window.mizu.camera({{zoom:{float(msg['value'])}}})"
+            elif action == "pos":
+                call = f"window.mizu.camera({{dx:{float(msg['dx'])},dy:{float(msg['dy'])}}})"
+            elif action == "reset":
+                call = "window.mizu.camera({reset:true})"
+            else:
+                return respond({"ok": False, "error": "camera action must be zoom|pos|reset"})
+            return self.run_js(views, call, respond)
+        if cmd == "page":
+            return self.run_js(views, "window.mizu.status()", respond)
+        if cmd == "motion":
+            group = str(msg.get("group", ""))
+            return self.run_js(views, f"window.mizu.motion({json.dumps(group)})", respond)
+        if cmd == "model":
+            prefab = str(msg.get("prefab", ""))
+            return self.run_js(views, f"window.mizu.model({json.dumps(prefab)})", respond)
+        return respond({"ok": False, "error": f"unknown command: {cmd}"})
+
+    @staticmethod
+    def run_js(views, script, respond):
+        """Starts script in every view. respond() runs once all views answered."""
+        if not views:
+            return respond({"ok": False, "error": "no outputs"})
+        results = []
+
+        def finish(view, res):  # GTK thread, from the WebKit callback
+            try:
+                value = view.evaluate_javascript_finish(res)
+                results.append({"ok": True, "result": value.to_string()})
+            except GLib.Error as err:
+                results.append({"ok": False, "error": err.message})
+            if len(results) == len(views):
+                respond({"ok": all(r["ok"] for r in results), "outputs": results})
+
+        def callback_for(view):
+            # a factory, so the view is bound even if GI passes extra arguments
+            def callback(_source, res, *_user_data):
+                finish(view, res)
+            return callback
+
+        for view in views:
+            view.evaluate_javascript(script, -1, None, None, None, callback_for(view), None)
+
+
+def ensure_server(url, serve):
+    parsed = urllib.parse.urlsplit(url)
+    host, port = parsed.hostname or "127.0.0.1", parsed.port or 80
+    if port_open(host, port):
+        return None
+    if not serve:
+        print(f"[wall] nothing listens on {host}:{port}; start scripts/serve.py first",
+              file=sys.stderr)
+        return None
+    print(f"[wall] starting {SERVE.name} on {port}", flush=True)
+    proc = subprocess.Popen([sys.executable, str(SERVE), str(port)], cwd=ROOT)
+    atexit.register(proc.terminate)
+    return proc
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser.add_argument("--url", default=DEFAULT_URL)
+    parser.add_argument("--no-serve", action="store_true")
+    args = parser.parse_args()
+    ensure_server(args.url, serve=not args.no_serve)
+    app = WallApp(args.url, Control())
+    return app.run(None)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

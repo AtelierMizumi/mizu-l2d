@@ -73,10 +73,15 @@ function writeStored(key, value) {
 function removeStored(key) {
     try { localStorage.removeItem(key); } catch { /* ignore */ }
 }
-const placementKey = () => `mizu.placement.${MODEL}`;
-const settingsKey = () => `mizu.settings.${MODEL}`;
+// the wallpaper keeps its own placement and settings (same origin as the web viewer)
+const placementKey = () => `mizu.placement.${MODEL}${WALL_MODE ? '.wall' : ''}`;
+const settingsKey = () => `mizu.settings.${MODEL}${WALL_MODE ? '.wall' : ''}`;
 // defaults: tips off; web viewer plays voice and chatter (wallpaper mode mutes, R2)
-function loadSettings() { return { tips: false, mute: false, chatter: true, ...(readStored(settingsKey()) ?? {}) }; }
+// wall mode (?wall=1, set by the wallpaper host) starts muted (R1d / R2)
+const WALL_MODE = new URLSearchParams(location.search).has('wall');
+function loadSettings() {
+    return { tips: false, mute: WALL_MODE, chatter: true, ...(readStored(settingsKey()) ?? {}) };
+}
 function saveSettings(patch) { writeStored(settingsKey(), { ...loadSettings(), ...patch }); }
 
 function makeBadge(number) {
@@ -267,6 +272,7 @@ function setupPointerEvents() {
             const now = performance.now();
             if (now - h.lastFired < h.cooldown) return;
             h.lastFired = now;
+            lastTap = h.action;
             model.motion(h.action, undefined, 3);
             dialogue?.say(window.MizuDialogue.keyForAction(h.action));
             return;
@@ -429,6 +435,7 @@ let catalog = {};
 let placementIndex = null;
 let picker = null;
 let dialogue = null;
+let lastTap = null; // last hotspot action that fired (reported by window.mizu.status)
 let bgSprite = null;
 let loadToken = 0; // a newer loadModel() call makes older in-flight loads drop their result
 
@@ -568,12 +575,50 @@ function tick() {
     if (hotspots.length) updateHotspots();
 }
 
+// Control API for the wallpaper host (SPEC §5.3). The host evaluates these
+// calls; every result is a string, so JSON is returned where there is state.
+function installControlApi() {
+    const motionGroups = () => Object.keys(model?.internalModel.settings.motions || {});
+    window.mizu = {
+        camera({ zoom, dx, dy, reset } = {}) {
+            if (reset) resetView();
+            else {
+                if (zoom !== undefined) view.zoom = Math.min(Math.max(zoom, ZOOM_MIN), ZOOM_MAX);
+                if (dx !== undefined) view.dx = dx;
+                if (dy !== undefined) view.dy = dy;
+                if (model) renderPlacement();
+                if (model) saveView();
+            }
+            return JSON.stringify(view);
+        },
+        motion(group) {
+            if (!model || !motionGroups().includes(group)) return 'false';
+            model.motion(group, undefined, 3);
+            return 'true';
+        },
+        model(prefab) {
+            switchModel(prefab);
+            return 'ok';
+        },
+        status() {
+            return JSON.stringify({
+                prefab: MODEL, view, tips: tipsOn, muted: dialogue?.state.mute ?? null,
+                chatter: dialogue?.state.chatter ?? null, groups: motionGroups().length,
+                lastTap, hotspots: hotspots.length,
+                zones: hotspots.map(h => ({ a: h.action, x: Math.round(h.badge.position.x), y: Math.round(h.badge.position.y) })),
+            });
+        },
+    };
+}
+
 function onResize() {
     if (model) renderPlacement();
     if (bgSprite) fitBackground(bgSprite);
 }
 
 async function main() {
+    // wallpaper: the page is the background, so the controls are hidden (index.html)
+    if (WALL_MODE) document.body.classList.add('wall');
     // probe for render checks (handover A4): page state without pixels
     window.__mizu = {
         app, model: null, bg: null, hotspots, paraRange: null,
@@ -588,6 +633,7 @@ async function main() {
         window.__mizu.dialogue = dialogue;
     }
     setupPointerEvents();
+    installControlApi();
     app.ticker.add(tick);
     window.addEventListener('resize', onResize);
     if (window.MizuPicker && Object.keys(catalog).length) {

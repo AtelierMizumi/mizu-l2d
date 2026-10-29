@@ -35,6 +35,13 @@ def catalog_prefabs():
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
+    def end_headers(self):
+        # the wallpaper's WebKit view must pick up edits without a cache clear;
+        # the download route sets its own Cache-Control
+        if not self.path.startswith("/api/"):
+            self.send_header("Cache-Control", "no-cache")
+        super().end_headers()
+
     # Host allowlist: blocks DNS rebinding, where a hostile domain re-points at
     # 127.0.0.1 and reads the responses. Set in main() from the bound port.
     allowed_hosts = frozenset()
