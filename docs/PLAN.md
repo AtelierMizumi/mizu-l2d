@@ -398,11 +398,54 @@ S = <1 session, M = ~1 session, L = plan for 2+ sessions with commit points.
    and chatter persist across reload; chatter fires with short intervals.
 
 ### R2 — embed as the wallpaper (M–L)
-*Status 2026-10-30:* R2a.1 and R2a.2 verified on niri (see STATUS.md).
-R2b.1 is partly done: `wall/mizu-l2d-wall.py` runs the socket with ping, status,
-page, camera, motion and model; `wall/mizu-l2d-ctl.py` is the CLI. Not yet:
-`quiet`/`interact` events and `perf` (R2b.1 tail), R2b.2 (idle fps and cover
-detection), and R2b.3 (systemd unit, niri spawn, hotplug and reboot test).
+*Status 2026-10-30:* R2a.1, R2a.2, R2c.1 and R2d.1 verified on niri (see STATUS.md).
+Open: R2b.1 tail (`quiet`/`interact`, `perf`), R2b.2, R2b.3, R2d.2 (mirror),
+R2d.3 (hotplug).
+
+**Design decisions (2026-10-30, after the layering failure and the RSS measurement):**
+- *Layering.* The owner's shell (`~/Projects/Tools/dotfiles/quickshell/.config/quickshell/mizu`)
+  owns the desktop layers. Layer-shell puts same-layer surfaces in map order, so a
+  live wallpaper mapped after the widgets covers them. Fix: while the live host
+  draws on a screen, the static picture steps aside and the desktop widgets move
+  to Bottom. Bottom is above the Background picture and below app windows. The
+  host tells the shell with `qs ipc -c mizu call mizu liveWallpaper "<screens>"`.
+  It re-sends every 5 s (a shell restart forgets the list) and hands the screens
+  back on SIGTERM or shutdown.
+- *Outputs.* Choose screens in `~/.config/mizu-l2d/config.toml` (`[wall] outputs`)
+  or with `--outputs`. Unset means every output.
+- *Resources.* Measured 2026-10-30 with two outputs: two `WebKitWebProcess`
+  at ~450 MB each, plus ~75 MB network process, about 970 MB in total. That is
+  far over the ~400 MB budget (SPEC §7). WebKitGTK 6.0 exposes no shared
+  process model, so per-output views cannot share a web process.
+  Decision: start with the same content on every output (one view per output,
+  as now), then move to a single rendered view mirrored onto the other outputs
+  (R2d.2). The mirror is the resource fix you asked for.
+
+1. `R2c.1` Layering with the owner's shell (done). Under the live host the static
+   picture is hidden and Clock, CalendarCard, WeatherCard, Todo, Lyrics, UserCard
+   and StickyNotes move to Bottom. Verified on eDP-1: the wall renders, and the
+   weather, calendar, clock and lyrics widgets stay visible above it. A SIGTERM
+   brings back `mizu-wallpaper` and the Background widgets.
+2. `R2d.1` Output selection (done, config parsing checked with a temporary file).
+   Each output gets its own view, all on the same URL. Not yet visually checked
+   with two outputs running at once.
+3. `R2d.2` Mirror spike (next). One WebKit view in the primary window, painted on
+   the other outputs with `Gtk.WidgetPaintable` in a `Gtk.Picture`. Input on a
+   mirror goes to the source view, scaled to the source's coordinates. Accept:
+   two outputs stay within one web process plus ≤ 50 MB per extra output,
+   measured as in the R2d.1 note; the mirror draws; a click on the mirror fires
+   the same hotspot. If the paintable path fails on WebKit's GL compositor, fall
+   back to per-output views and say so in STATUS.md.
+4. `R2d.3` Hotplug and per-output config (open). Test unplug/replug and the
+   config change with a running host.
+5. `R2b.2` Idle and cover (open). Still needs the niri event-stream check
+   (design doc spike S3) before pause-on-cover is built.
+6. `R2b.3` systemd user unit, niri spawn and reboot test (open). Needs an
+   owner decision: the niri spawn lives in the dotfiles repo, and the owner's
+   `mizu-wallpaper` must either be replaced or kept below the widgets.
+7. `R2x` Leftover cleanup (manual, see the command in STATUS.md).
+
+Original unit notes follow.
 1. `R2a.1` Install webkitgtk-6.0 + gtk4-layer-shell (GTK4 pair); write
    `wall/mizu-l2d-wall.py` (PyGObject): one `Gtk.Application` window per
    monitor, `gtk4layershell` init → BACKGROUND layer, anchor all sides,

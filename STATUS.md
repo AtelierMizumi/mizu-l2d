@@ -2,7 +2,7 @@
 
 Last updated: 2026-10-30
 Last agent: Claude (R1 complete; R2a.1, R2a.2 and part of R2b.1 done; tested on the live niri session)
-Next unit: **R2b.2** (quiet/cover detection and idle fps) and **R2b.3** (systemd unit). Both need owner decisions, see R2 below.
+Next unit: **R2d.2** (mirror one WebKit view onto the other outputs; spike first), then R2d.3 (hotplug). R2b.2 and R2b.3 need owner decisions, see PLAN R2.
 Handover for continuation: **docs/HANDOVER.md** (read it first; it lists owner-only steps).
 Test model (owner, 2026-10-30): **gaoxiong_7** replaces aersasi_3 (Alsace, broken) for all
 tests and screenshots; the web viewer's default `?model=` is now gaoxiong_7. See PLAN §9.
@@ -181,9 +181,32 @@ tests and screenshots; the web viewer's default `?model=` is now gaoxiong_7. See
   (tips, reset, voice, picker) are hidden with `body.wall`. Dialogue bubbles stay.
 - `scripts/serve.py` now sends `Cache-Control: no-cache` for static files, so
   WebKit picks up edits without a cache clear.
-- Leftover (owner to delete): `~/.local/share/mizu/verify-bak/` holds a
-  duplicate of aidang_2 used for the byte comparison. The agent's `rm` was
-  denied, so it is still there.
+- R2c.1 done (verified on eDP-1): the owner's shell puts the desktop widgets on
+  Bottom while a live host covers the screen, and hides the static picture there.
+  Changes are in `~/Projects/Tools/dotfiles/quickshell/.config/quickshell/mizu`
+  (uncommitted, owner's repo): `WallpaperService.liveScreens` and `covered()`,
+  `MizuIpc.liveWallpaper(screens)`, and the layer rule in Clock, CalendarCard,
+  WeatherCard, Todo, Lyrics, UserCard and StickyNotes, plus `WallpaperLayer`
+  visibility. Checked with `niri msg --json layers`: under the wall, the widgets
+  are Bottom and `mizu-wallpaper` is gone on eDP-1. The screenshot shows the
+  Azur wall with the weather, calendar, clock and lyrics widgets above it. After
+  SIGTERM, `mizu-wallpaper` and the Background widgets are back.
+- R2d.1 done: `wall/mizu-l2d-wall.py --outputs eDP-1` or `[wall] outputs` in
+  `~/.config/mizu-l2d/config.toml`. Unknown keys are warned about. Checked with a
+  temporary config: the config value and the CLI override both read correctly.
+- Resource measurement (2 outputs, same page): WebKitWebProcess 451 MB and
+  448 MB, WebKitNetworkProcess 75 MB, total 971 MB. WebKitGTK 6.0 has no process
+  model setting. The mirror spike (R2d.2) is the next step.
+- Mistake during testing: one test run started the host on eDP-1 without the
+  server for about 12 s, so the owner may have seen a blank wallpaper. It has
+  not recurred.
+- Leftover cleanup (run by the owner; nothing below needs sudo):
+  ```
+  rm -r ~/.local/share/mizu/verify-bak ~/.local/share/mizu/words/lua/ship_skin_template_main.lua ~/Projects/Tools/dotfiles/.playwright-mcp
+  ```
+  `verify-bak` is a duplicate of aidang_2 (byte-identical). `ship_skin_template_main.lua`
+  is a stray download from a manual check; the builder never reads it. `.playwright-mcp`
+  holds screenshots and logs from the browser tests. The control socket is already removed on exit.
 
 ## In progress
 - S0-perf (SPEC §12): scripts in `spikes/s0-perf/` (committed in `cd21547`). Side A
