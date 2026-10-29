@@ -1,8 +1,8 @@
 # STATUS — state ledger (update at the END of every work unit)
 
 Last updated: 2026-10-30
-Last agent: ZCode (R1a.2 background + full-catalog import/verification)
-Next unit: **R1a.3** (consume skins.json offset/scale, PLAN §8 R1). R1a.2 committed.
+Last agent: ZCode (R1b.2 hotspots + interaction tips, tested on Jean Bart)
+Next unit: **R1a.3** (consume skins.json offset/scale, PLAN §8 R1). R1b.2 committed.
 Handover for continuation: **docs/HANDOVER.md** (read it first; it lists owner-only steps).
 
 ## Done (verified)
@@ -61,6 +61,18 @@ Handover for continuation: **docs/HANDOVER.md** (read it first; it lists owner-o
   for anninvwang_2: identical rendering). wuqi_3 (Azuma — Career Counseling)
   owns a full-canvas dark classroom scene (atlas confirmed); worth an
   eyeball against the site during R1c.1 calibration.
+- R1b.2 done (verified): D-HIT hotspots + the game-style "L2D interaction
+  tips" toggle. Zones come from `skins.json drags[]` (part = drawable id,
+  trigger.action = motion group, limitTime = cooldown s); skins WITHOUT a
+  drags config (Jean Bart, lisailiu_3, …) synthesize basic zones from their
+  Touch* drawables whose names map to motion groups. Numbered glass
+  speech-bubble badges track each zone's live vertex bbox; hover label +
+  pointer cursor; click fires the motion behind a per-zone cooldown.
+  Browser-verified on rangbaer_3/rangbaer_4 (3 zones each: hover label,
+  click → touch_head/body/special motion, 1s cooldown swallows rapid
+  re-clicks) and regression-checked on aersasi_3 (66 drags → 48 playable
+  zones, fallback inert). drags[].ignore/reactCondition stay unapplied
+  (PLAN §5 unverified; the cooldown alone prevents retrigger spam).
 
 ## In progress
 - S0-perf (SPEC §12): scripts in `spikes/s0-perf/` (committed in `cd21547`). Side A
@@ -178,3 +190,21 @@ Handover for continuation: **docs/HANDOVER.md** (read it first; it lists owner-o
   - Catalog: 239 prefabs / 76 unique bgs / 5.3 GB mirrored under
     `~/.local/share/mizu/l2d/`. Import and verification artifacts in
     /tmp/mizu-import (logs, probe JSONL) are ephemeral.
+- 2026-10-30 R1b.2 unit (tested on the owner's pick, Jean Bart rangbaer_3/_4):
+  - rangbaer_3/_4 carry NO drags config (nagami index.json flags are `{}`
+    too) but the mesh has TouchHead/TouchBody/TouchSpecial drawables with
+    matching touch_* motion groups — the tech-design §13 "older models fall
+    back to basic touch zones" case. The buildHotspots fallback synthesizes
+    zones only when drags is empty; drags-configured skins are untouched.
+  - Drawable ids are PascalCase ("TouchHead") while motion groups are
+    snake_case ("touch_head"): naive `.toLowerCase()` gives "touchhead" and
+    matches nothing — the first fallback cut silently produced 0 zones and
+    a hidden toggle. Convert with `/([a-z0-9])([A-Z])/` before matching.
+    When page state contradicts the file on disk, read the executed source
+    in-page (`buildHotspots.toString()`) before suspecting the cache.
+  - limitTime across the 137 drags-configured skins: 1s is the game's
+    common cooldown (2481/3333 entries) — used for the fallback zones too.
+  - Probe caveats: two CDP clicks are ~2s apart unless the probe avoids
+    waits between them, so a cooldown test must read lastFired on
+    back-to-back clicks; occluded-tab rAF throttling (FPS 1) means
+    hover-driven state needs a follow-up wait before asserting.

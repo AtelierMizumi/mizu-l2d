@@ -6,9 +6,43 @@
   <style>
     html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
     canvas { display: block; }
+
+    /* L2D interaction tips toggle — glassy magnifier like the game's button,
+       kept faint when idle so it never competes with the scene */
+    #tips-toggle {
+      position: fixed; right: 14px; bottom: 14px; width: 40px; height: 40px;
+      padding: 0; border: 0; background: none; cursor: pointer; z-index: 10;
+      opacity: .4; transition: opacity .15s ease;
+    }
+    #tips-toggle:hover, #tips-toggle:focus-visible { opacity: 1; }
+    #tips-toggle .lens { fill: rgba(18, 28, 42, .5); stroke: rgba(255, 255, 255, .85); stroke-width: 1.6; }
+    #tips-toggle .lens-text { fill: #fff; font: 700 9px system-ui, sans-serif; text-anchor: middle; }
+    #tips-toggle .handle { stroke: rgba(255, 255, 255, .85); stroke-width: 2.6; stroke-linecap: round; }
+    #tips-toggle.on { opacity: 1; }
+    #tips-toggle.on .lens { fill: rgba(40, 62, 92, .78); stroke: #fff; }
+
+    /* hover label — same glass speech-bubble language as the pinned badges */
+    #tips-label {
+      position: fixed; z-index: 11; pointer-events: none;
+      transform: translate(12px, 14px);
+      background: rgba(255, 255, 255, .5);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, .55);
+      color: #46586e;
+      font: 12px/1.4 system-ui, sans-serif; padding: 3px 10px; border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(30, 42, 60, .18);
+    }
   </style>
 </head>
 <body>
+  <button id="tips-toggle" type="button" aria-pressed="false" title="L2D interaction tips" hidden>
+    <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
+      <circle class="lens" cx="17.5" cy="17.5" r="12.5"></circle>
+      <text class="lens-text" x="17.5" y="20.5">L2D</text>
+      <line class="handle" x1="27" y1="27" x2="33.5" y2="33.5"></line>
+    </svg>
+  </button>
+  <div id="tips-label" hidden></div>
   <script src="vendor/pixi.min.js"></script>
   <script src="vendor/live2dcubismcore.min.js"></script>
   <script src="vendor/pixi-live2d-display.min.js"></script>
