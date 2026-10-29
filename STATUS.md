@@ -1,0 +1,55 @@
+# STATUS — state ledger (update at the END of every work unit)
+
+Last updated: 2026-10-29
+Last agent: ZCode (session that wrote PLAN v2)
+Next unit: **R0.2** (see docs/PLAN.md §8). R0.1 committed as the baseline.
+
+## Done (verified)
+- Spikes S1/S2/S4 PASS (design doc §2). Pointer input to background layer
+  works on niri; virtual-pointer injection works for testing.
+- C++ daemon skeleton builds green and runs on both outputs (frame loop,
+  damage discipline, IPC, ctl, config). Committed in the R0.1 baseline.
+- Native Cubism renderer built (SDK 5-r.3 + LINUX_GLES2 vendor patch);
+  renders *something* but rest pose is exploded → parked (PLAN §9-P).
+- Assets mirrored: `~/.local/share/mizu/l2d/abeikelongbi_3` (MilkyLan),
+  `~/.local/share/mizu/l2d/aersasi_3` (nagami CDN, 40 MB, full touch_idle
+  set + animator.json + skins.json with 66 drags).
+- nagami.moe data layer reverse-engineered and documented (PLAN §5);
+  frontend source confirmed private.
+- `scripts/fetch-model.sh` rewritten for the nagami CDNs (tested).
+
+## In progress
+- nothing
+
+## Next
+- R0.2 → R0.3 → R1a.1 (PLAN §8). S0-perf runs before R2 (SPEC §12).
+
+## Blockers / open questions
+- `skins.json` scale/offset unit semantics unknown (resolved empirically in
+  R1c.1).
+- gtk4-layer-shell input-region behavior on the background layer unverified
+  (R2a.2 spike).
+- Native renderer exploded rest pose — parked, hypotheses in PLAN §9-P.
+
+## Discoveries log (append-only)
+- 2026-10-29: initial ledger written; see PLAN §6 for pitfalls 1–13.
+- 2026-10-29: owner asked for an official multi-environment extension. Wrote
+  docs/SPEC.md (v3 DRAFT): engine + host adapters + content packs. Public engine
+  cannot ship Cubism Core or Azur Lane content (SPEC §9). Owner decisions open:
+  D-L1 license, D-L2 private overlay for content, D-N1 name, D-S1 tiers, D-P1 repo
+  location. Spikes S5–S8 added. Not yet reviewed by owner.
+- 2026-10-29 spec audit (tests run, see PLAN §8 R0.1 and §5):
+  - `ninja -C build`: no work to do (green). `bash -n scripts/*.sh`: all pass.
+  - `git add -A` FAILS on root character-device placeholders. R0.1 now uses explicit paths.
+  - Asset counts fixed in PLAN: aersasi_3 has 82 motion groups (not ~60), 44 touch_idle
+    groups (not 47; gaps at 16, 20, 21). 21 idle groups and 66 drags confirmed.
+    abeikelongbi_3 has 14 groups, confirmed.
+  - WebKit stack: `ldd gtk4-layer-shell` links GTK4 only; `webkit2gtk-4.1` links GTK3.
+    Reference host is now webkitgtk-6.0 (PLAN D-R2, R2a.1, §3; SPEC §4.2).
+  - pixi.js and pixi-live2d-display LICENSE pages show MIT (fetched from GitHub 2026-10-29).
+  - Not verified: Live2D license terms (live2d.com blocked in sandbox). Layer-shell
+    support per compositor (secondary sources only). Performance A/B (not run: no
+    display in sandbox; `webkit_bench.py` written, not yet run on the owner's session).
+- 2026-10-29 owner approved: decisions D-L1, D-L2, D-N1, D-S1, D-P1 recorded in SPEC §12
+  (recommendations accepted). R0.1 committed with explicit paths. `.claude/` stays
+  untracked until the owner decides. S0-perf is the next measurement, before R2.

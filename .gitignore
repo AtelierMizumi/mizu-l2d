@@ -1,0 +1,7 @@
+build/
+third_party/cubism/
+third_party/nlohmann/
+.cache/
+compile_commands.json
+# Live2D proprietary core (mirrored by script, never committed)
+web/vendor/live2dcubismcore.min.js

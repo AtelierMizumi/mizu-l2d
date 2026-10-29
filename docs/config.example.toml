@@ -1,0 +1,22 @@
+# mizu-l2d daemon configuration
+# Loaded from ~/.config/mizu-l2d/config.toml. Missing keys fall back to defaults.
+
+[model]
+# Directory containing .model3.json (downloaded via scripts/fetch-model.sh).
+# Unused until the Cubism runtime is wired in (next increment).
+path = "~/.local/share/mizu/l2d/abeikelongbi_3"
+
+[render]
+# After `quiet_time_s` without pointer interaction, rendering drops to
+# `idle_fps` by skipping vsync callbacks; any interaction returns to full rate.
+idle_fps = 30
+quiet_time_s = 5.0
+
+[ipc]
+# Socket name inside $XDG_RUNTIME_DIR (mizu-l2d-ctl expects mizu-l2d.sock).
+socket = "mizu-l2d.sock"
+
+[placeholder]
+# Accent color of the skeleton scene (linear-ish sRGB floats). Replaced by
+# palette extraction once the model runtime lands.
+accent = [0.831, 0.690, 0.416]

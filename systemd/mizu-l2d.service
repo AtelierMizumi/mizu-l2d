@@ -1,0 +1,12 @@
+[Unit]
+Description=Mizu L2D — Live2D wallpaper daemon (niri background layer)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecStart=%h/Projects/Tools/mizu-l2d/build/mizu-l2d
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target
