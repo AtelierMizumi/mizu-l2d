@@ -21,6 +21,18 @@
     #tips-toggle.on { opacity: 1; }
     #tips-toggle.on .lens { fill: rgba(40, 62, 92, .78); stroke: #fff; }
 
+    /* placement reset (R1a.5): sits left of the tips toggle, shown only while
+       the pointer is over the page so the scene stays clean */
+    #view-reset {
+      position: fixed; right: 60px; bottom: 14px; width: 40px; height: 40px;
+      padding: 0; border: 0; background: none; cursor: pointer; z-index: 10;
+      opacity: 0; transition: opacity .15s ease;
+    }
+    body:hover #view-reset { opacity: .4; }
+    #view-reset:hover, #view-reset:focus-visible { opacity: 1; }
+    #view-reset .lens { fill: rgba(18, 28, 42, .5); stroke: rgba(255, 255, 255, .85); stroke-width: 1.6; }
+    #view-reset .arrow { fill: none; stroke: rgba(255, 255, 255, .9); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+
     /* hover label — same glass speech-bubble language as the pinned badges */
     #tips-label {
       position: fixed; z-index: 11; pointer-events: none;
@@ -40,6 +52,13 @@
       <circle class="lens" cx="17.5" cy="17.5" r="12.5"></circle>
       <text class="lens-text" x="17.5" y="20.5">L2D</text>
       <line class="handle" x1="27" y1="27" x2="33.5" y2="33.5"></line>
+    </svg>
+  </button>
+  <button id="view-reset" type="button" title="Reset placement">
+    <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
+      <circle class="lens" cx="20" cy="20" r="12.5"></circle>
+      <path class="arrow" d="M 25.5 17.5 A 6 6 0 1 0 20.4 26"></path>
+      <polyline class="arrow" points="22.5,14.2 25.8,17.6 29,15"></polyline>
     </svg>
   </button>
   <div id="tips-label" hidden></div>

@@ -16,6 +16,9 @@
 // truth.
 // R1a.3: nagami home-screen placement (mode "main", formula extracted from
 // the site's own bundle — research doc §2) replaces the R1a.1 90%-height fit.
+// R1a.5: placement editor — drag empty stage to move, wheel to zoom around the
+// cursor (0.3x–3x of the nagami default), reset button. The user view is kept
+// per prefab in localStorage in design px, so it scales with the window.
 const MODEL = new URLSearchParams(location.search).get('model') || 'gaoxiong_7';
 const app = new PIXI.Application({
     backgroundAlpha: 0,
@@ -41,14 +44,37 @@ badgeLayer.visible = false;
 
 const tipsToggle = document.getElementById('tips-toggle');
 const tipsLabel = document.getElementById('tips-label');
-tipsToggle.addEventListener('click', () => {
-    tipsOn = !tipsOn;
+const resetBtn = document.getElementById('view-reset');
+tipsToggle.addEventListener('click', () => setTips(!tipsOn));
+resetBtn.addEventListener('click', resetView);
+
+function setTips(on) {
+    tipsOn = on;
     tipsOnAt = performance.now() / 1000;
     tipsToggle.classList.toggle('on', tipsOn);
     tipsToggle.setAttribute('aria-pressed', String(tipsOn));
     badgeLayer.visible = tipsOn;
     setHovered(null);
-});
+    saveSettings({ tips: tipsOn });
+}
+
+// ---------- per-prefab storage (R1a.5) ----------
+// settings layer shared by features (tips now, mute in R1d); every access is
+// guarded because localStorage can throw in private windows or with blocked
+// site data — the page then just runs with defaults
+function readStored(key) {
+    try { return JSON.parse(localStorage.getItem(key)); } catch { return null; }
+}
+function writeStored(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
+}
+function removeStored(key) {
+    try { localStorage.removeItem(key); } catch { /* ignore */ }
+}
+const placementKey = () => `mizu.placement.${MODEL}`;
+const settingsKey = () => `mizu.settings.${MODEL}`;
+function loadSettings() { return { tips: false, ...(readStored(settingsKey()) ?? {}) }; }
+function saveSettings(patch) { writeStored(settingsKey(), { ...loadSettings(), ...patch }); }
 
 function makeBadge(number) {
     const badge = new PIXI.Container();
@@ -197,22 +223,63 @@ function updateHotspots() {
         h.badge.scale.set((active ? 1.15 : 1) * (1 + sway * 0.035) * pop);
         h.badge.alpha = (active ? 1 : 0.88) * Math.min(pop, 1);
     }
-    if (pointerGlobal.x >= 0) {
+    if (pointerGlobal.x >= 0 && !(press && press.dragging)) {
         setHovered(hotspotAt(model.toModelPosition(pointerGlobal, tempModelPoint)));
     }
 }
 
-function setupHotspotEvents() {
-    app.stage.interactive = true;
-    app.stage.on('pointermove', (e) => pointerGlobal.copyFrom(e.data.global));
-    app.stage.on('pointerdown', (e) => {
-        const h = hotspotAt(model.toModelPosition(e.data.global, tempModelPoint));
-        if (!h) return;
-        const now = performance.now();
-        if (now - h.lastFired < h.cooldown) return;
-        h.lastFired = now;
-        model.motion(h.action, undefined, 3);
+// ---------- pointer: hotspot clicks + placement drag/zoom (R1a.5) ----------
+// Events sit on the canvas (not the stage) so one listener set covers clicks,
+// drags and wheel. A press that lands on a hotspot fires it at once and never
+// turns into a drag; a press on empty stage becomes a drag after DRAG_THRESHOLD px.
+const DRAG_THRESHOLD = 4;
+let press = null; // { start, last, dragging } for presses that missed every hotspot
+
+function canvasPoint(e) {
+    const r = app.view.getBoundingClientRect();
+    return new PIXI.Point(e.clientX - r.left, e.clientY - r.top);
+}
+
+function setupPointerEvents() {
+    const canvas = app.view;
+    canvas.addEventListener('pointermove', (e) => {
+        const p = canvasPoint(e);
+        pointerGlobal.copyFrom(p);
+        if (!press) return;
+        if (!press.dragging) {
+            if (Math.hypot(p.x - press.start.x, p.y - press.start.y) <= DRAG_THRESHOLD) return;
+            press.dragging = true;
+            canvas.style.cursor = 'grabbing';
+            setHovered(null);
+        }
+        moveView(p.x - press.last.x, p.y - press.last.y);
+        press.last = p;
     });
+    canvas.addEventListener('pointerdown', (e) => {
+        const p = canvasPoint(e);
+        const h = hotspotAt(model.toModelPosition(p, tempModelPoint));
+        if (h) {
+            press = null;
+            const now = performance.now();
+            if (now - h.lastFired < h.cooldown) return;
+            h.lastFired = now;
+            model.motion(h.action, undefined, 3);
+            return;
+        }
+        press = { start: p, last: p, dragging: false };
+    });
+    window.addEventListener('pointerup', () => {
+        if (press && press.dragging) {
+            canvas.style.cursor = hoveredHotspot ? 'pointer' : 'default';
+            saveView();
+        }
+        press = null;
+    });
+    canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        zoomAt(canvasPoint(e), Math.exp(-e.deltaY * 0.001));
+        saveView();
+    }, { passive: false });
 }
 
 // R1a.3: nagami home-screen placement (mode "main", formula extracted from
@@ -222,24 +289,77 @@ function setupHotspotEvents() {
 // effectiveOffset * uiScale with +offset = up (Y inverted), where
 // effectiveOffset = newMainOffset (?? [0,-10]) + (newMainScale ?? 1) *
 // offset. Anchor center — pinning the site's exact anchor is R1c.1.
-function applyPlacement(skins, index) {
-    const uiScale = window.innerHeight / (index.designHeight ?? 1080);
-    const ppu = Math.max(model.internalModel.pixelsPerUnit, 1);
+// R1a.5 layers the user view on top: view.dx/dy are design px (screen axes,
+// +y down) and view.zoom multiplies the nagami scale; both persist per prefab.
+const ZOOM_MIN = 0.3, ZOOM_MAX = 3;
+let placementBase = null; // { designHeight, ppu, scale, effX, effY } from skins + index
+let view = { dx: 0, dy: 0, zoom: 1 };
+
+function setupPlacement(skins, index) {
     const newMainScale = skins?.newMainScale ?? 1;
-    const scale = (skins?.scale ?? index.defaultScale ?? 52) * newMainScale;
     const offset = skins?.offset ?? [0, 0];
     const newMainOffset = skins?.newMainOffset ?? [0, -10];
-    const effX = newMainOffset[0] + newMainScale * offset[0];
-    const effY = newMainOffset[1] + newMainScale * offset[1];
-    model.scale.set(scale / ppu * uiScale);
+    placementBase = {
+        designHeight: index.designHeight ?? 1080,
+        ppu: Math.max(model.internalModel.pixelsPerUnit, 1),
+        scale: (skins?.scale ?? index.defaultScale ?? 52) * newMainScale,
+        effX: newMainOffset[0] + newMainScale * offset[0],
+        effY: newMainOffset[1] + newMainScale * offset[1],
+    };
+    view = loadView();
+    renderPlacement();
+    console.log('[mizu] placement:', { ...placementBase, view });
+}
+
+function renderPlacement() {
+    const b = placementBase;
+    const w = window.innerWidth, h = window.innerHeight;
+    const uiScale = h / b.designHeight;
+    model.scale.set(b.scale / b.ppu * uiScale * view.zoom);
     model.anchor.set(0.5, 0.5);
-    model.position.set(window.innerWidth / 2 + effX * uiScale, window.innerHeight / 2 - effY * uiScale);
-    console.log('[mizu] placement:', {
-        uiScale, pixelsPerUnit: ppu, scale,
-        effectiveOffset: [effX, effY],
-        position: [Math.round(model.position.x), Math.round(model.position.y)],
-        displaySize: [Math.round(model.width), Math.round(model.height)],
-    });
+    model.position.set(w / 2 + (b.effX + view.dx) * uiScale, h / 2 + (view.dy - b.effY) * uiScale);
+}
+
+function uiScale() {
+    return window.innerHeight / placementBase.designHeight;
+}
+
+function moveView(dxPx, dyPx) {
+    const u = uiScale();
+    view.dx += dxPx / u;
+    view.dy += dyPx / u;
+    renderPlacement();
+}
+
+// keeps the model point under the cursor fixed while the zoom changes
+function zoomAt(p, factor) {
+    const zoom = Math.min(Math.max(view.zoom * factor, ZOOM_MIN), ZOOM_MAX);
+    const k = zoom / view.zoom;
+    if (k === 1) return;
+    const nx = p.x + (model.position.x - p.x) * k;
+    const ny = p.y + (model.position.y - p.y) * k;
+    const b = placementBase, u = uiScale();
+    view.zoom = zoom;
+    view.dx = (nx - window.innerWidth / 2) / u - b.effX;
+    view.dy = (ny - window.innerHeight / 2) / u + b.effY;
+    renderPlacement();
+}
+
+function loadView() {
+    const v = readStored(placementKey());
+    if (!v || ![v.dx, v.dy, v.zoom].every(Number.isFinite)) return { dx: 0, dy: 0, zoom: 1 };
+    return { dx: v.dx, dy: v.dy, zoom: Math.min(Math.max(v.zoom, ZOOM_MIN), ZOOM_MAX) };
+}
+
+function saveView() {
+    const r = (n) => Math.round(n * 1000) / 1000;
+    writeStored(placementKey(), { dx: r(view.dx), dy: r(view.dy), zoom: r(view.zoom) });
+}
+
+function resetView() {
+    view = { dx: 0, dy: 0, zoom: 1 };
+    removeStored(placementKey());
+    renderPlacement();
 }
 
 function fitBackground(sprite) {
@@ -310,10 +430,11 @@ async function main() {
     // the group 'idle' — auto-idle silently no-ops without this remap.
     model.internalModel.motionManager.groups.idle = Object.keys(
         model.internalModel.settings.motions).find(k => k.toLowerCase() === 'idle') ?? 'Idle';
-    applyPlacement(skins, index);
+    setupPlacement(skins, index);
     app.stage.addChild(model);
     app.stage.addChild(badgeLayer);
-    window.addEventListener('resize', () => applyPlacement(skins, index));
+    setupPointerEvents();
+    window.addEventListener('resize', renderPlacement);
     // 0.4.0 leaves a stale idle reservation behind when an idle motion is
     // requested but never started (state.complete() clears currentGroup but
     // nothing clears reservedIdleGroup), so shouldRequestIdleMotion() never
@@ -333,7 +454,9 @@ async function main() {
         // R1a.3 stores paraRange for the R1b.1 mouse-follow clamps
         paraRange: skins?.paraRange ?? null,
         get tipsOn() { return tipsOn; },
+        get view() { return { ...view }; },
         toggleTips: () => tipsToggle.click(),
+        resetView: () => resetView(),
     };
 
     // scene background; a bg failure must not kill the model render
@@ -353,7 +476,7 @@ async function main() {
     // hotspots from the skins.json loaded alongside the model
     try {
         buildHotspots(skins);
-        setupHotspotEvents();
+        if (hotspots.length && loadSettings().tips) setTips(true);
     } catch (err) {
         console.error('[mizu] hotspot setup failed:', err);
     }
