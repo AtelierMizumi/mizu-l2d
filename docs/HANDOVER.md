@@ -20,7 +20,8 @@ Read in this order before doing anything:
 - The agent's sandbox CANNOT: open a Wayland or X display, reach `cdn.jsdelivr.net`,
   `data.nagami.moe`, `azlassets.nagami.moe`, `azurlane.nagami.moe` or `live2d.com`, use sudo,
   or talk to a unix socket. Anything in that list must be handed to the owner as a command
-  block, with the expected output described.
+  block, with the expected output described. (Update 2026-10-29, R0.2 unit: a later
+  sandbox DID reach `cdn.jsdelivr.net` — re-test network assumptions per session.)
 - The owner runs commands on the desktop. Before any test that changes the live desktop,
   follow CLAUDE.md rule 7: switch to an empty workspace first, restore afterwards.
 

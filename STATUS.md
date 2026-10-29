@@ -1,8 +1,8 @@
 # STATUS — state ledger (update at the END of every work unit)
 
 Last updated: 2026-10-29
-Last agent: ZCode (session that wrote PLAN v2)
-Next unit: **R0.2** (see docs/PLAN.md §8). R0.1 committed as the baseline.
+Last agent: ZCode (R0.2 web vendor unit)
+Next unit: **R0.3** (see docs/PLAN.md §8). R0.2 committed.
 Handover for continuation: **docs/HANDOVER.md** (read it first; it lists owner-only steps).
 
 ## Done (verified)
@@ -18,9 +18,15 @@ Handover for continuation: **docs/HANDOVER.md** (read it first; it lists owner-o
 - nagami.moe data layer reverse-engineered and documented (PLAN §5);
   frontend source confirmed private.
 - `scripts/fetch-model.sh` rewritten for the nagami CDNs (tested).
+- R0.2 done (verified): `scripts/fetch-web-deps.sh` fetched and pinned
+  pixi 6.5.10 (`dist/browser/pixi.min.js`) and pixi-live2d-display 0.4.0
+  (`dist/index.min.js`) into `web/vendor/`, sha256 recorded in
+  `web/vendor/SOURCES.md`; package LICENSE texts vendored as `*.LICENSE`.
+  `git check-ignore` confirms the Cubism Core, `web/data/` and `web/assets`
+  stay out of git.
 
 ## In progress
-- S0-perf (SPEC §12): scripts in `spikes/s0-perf/` (uncommitted). Side A
+- S0-perf (SPEC §12): scripts in `spikes/s0-perf/` (committed in `cd21547`). Side A
   `webkit_bench_gtk4.py` needs `webkitgtk-6.0`. Side B `native_measure.sh` needs
   a live Wayland session. Both must be run by the owner on the desktop.
 
@@ -81,3 +87,11 @@ Handover for continuation: **docs/HANDOVER.md** (read it first; it lists owner-o
   - Host: wait for the S0-perf result before choosing WebKitGTK 6.0 or native.
   - Seams S1–S6 are proposed (catalog, on-demand fetch, render, interaction, wallpaper host,
     success-rate harness). Not yet confirmed by the owner; no tests written yet.
+- 2026-10-29 R0.2 unit:
+  - pixi-live2d-display@0.4.0 has NO `dist/web/` (that layout is 0.5.x); the
+    0.4.0 bundle is `dist/index.min.js`. PLAN R0.2 corrected before vendoring.
+  - The 0.4.0 bundle embeds no license notice, so each package's LICENSE text
+    is vendored as `<bundle>.LICENSE` (MIT redistribution requirement).
+  - This sandbox CAN reach cdn.jsdelivr.net — HANDOVER §1's "cannot" list was
+    written for the previous agent's sandbox. Re-test network assumptions per
+    session instead of trusting the handover.

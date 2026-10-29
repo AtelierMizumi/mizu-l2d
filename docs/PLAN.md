@@ -310,7 +310,8 @@ S = <1 session, M = ~1 session, L = plan for 2+ sessions with commit points.
    (SPEC §12, D-L2 and its amendment):
    - `web/vendor/pixi.min.js` ← jsDelivr pixi.js@6.5.10 browser build (MIT)
    - `web/vendor/pixi-live2d-display.min.js` ← jsDelivr
-     pixi-live2d-display@0.4.0 `dist/web/index.min.js` (MIT; re-check at vendoring)
+     pixi-live2d-display@0.4.0 `dist/index.min.js` (MIT; verified 2026-10-29 —
+     0.4.0 has no `dist/web/`, that layout is 0.5.x)
    - Record every URL, version and sha256 in `web/vendor/SOURCES.md`. Commit these.
    - NOT in git: `live2dcubismcore.min.js` (Live2D proprietary) and the nagami data
      (`l2d_mapping.json`, `index.json`, skins). Keep them under `~/.local/share/mizu/`
