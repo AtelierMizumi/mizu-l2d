@@ -14,7 +14,9 @@
 // alone prevents retrigger spam. Badge numbers are 1-based drags order; the
 // game's own numbering scheme is unverified, so the label is the source of
 // truth.
-const MODEL = new URLSearchParams(location.search).get('model') || 'aersasi_3';
+// R1a.3: nagami home-screen placement (mode "main", formula extracted from
+// the site's own bundle — research doc §2) replaces the R1a.1 90%-height fit.
+const MODEL = new URLSearchParams(location.search).get('model') || 'gaoxiong_7';
 const app = new PIXI.Application({
     backgroundAlpha: 0,
     resizeTo: window,
@@ -180,6 +182,11 @@ function updateHotspots() {
         internal.localTransform.apply(tempCenter, tempLocal);
         model.toGlobal(tempLocal, tempGlobal);
         h.badge.position.set(tempGlobal.x, tempGlobal.y);
+        // some drags hit-regions (Alsace TouchIdle2..5) park far off-canvas
+        // in the rest pose — hide their badges instead of floating them in
+        // the void; they reappear if an animation brings the region on-screen
+        h.badge.visible = tempGlobal.x > -50 && tempGlobal.x < window.innerWidth + 50
+            && tempGlobal.y > -50 && tempGlobal.y < window.innerHeight + 50;
         const active = h === hoveredHotspot;
         // gentle float + breathe, staggered per badge so they never pulse in
         // lockstep; ease-out pop when tips are toggled on
@@ -208,11 +215,31 @@ function setupHotspotEvents() {
     });
 }
 
-function fit(model) {
-    const scale = window.innerHeight * 0.9 / model.internalModel.height;
-    model.scale.set(scale);
-    model.anchor.set(0.5, 1);
-    model.position.set(window.innerWidth / 2, window.innerHeight);
+// R1a.3: nagami home-screen placement (mode "main", formula extracted from
+// the site's own bundle, research doc §2). uiScale = viewportHeight /
+// designHeight (1080); model scale = (scale ?? defaultScale 52) *
+// (newMainScale ?? 1) / pixelsPerUnit * uiScale; position = screen center +
+// effectiveOffset * uiScale with +offset = up (Y inverted), where
+// effectiveOffset = newMainOffset (?? [0,-10]) + (newMainScale ?? 1) *
+// offset. Anchor center — pinning the site's exact anchor is R1c.1.
+function applyPlacement(skins, index) {
+    const uiScale = window.innerHeight / (index.designHeight ?? 1080);
+    const ppu = Math.max(model.internalModel.pixelsPerUnit, 1);
+    const newMainScale = skins?.newMainScale ?? 1;
+    const scale = (skins?.scale ?? index.defaultScale ?? 52) * newMainScale;
+    const offset = skins?.offset ?? [0, 0];
+    const newMainOffset = skins?.newMainOffset ?? [0, -10];
+    const effX = newMainOffset[0] + newMainScale * offset[0];
+    const effY = newMainOffset[1] + newMainScale * offset[1];
+    model.scale.set(scale / ppu * uiScale);
+    model.anchor.set(0.5, 0.5);
+    model.position.set(window.innerWidth / 2 + effX * uiScale, window.innerHeight / 2 - effY * uiScale);
+    console.log('[mizu] placement:', {
+        uiScale, pixelsPerUnit: ppu, scale,
+        effectiveOffset: [effX, effY],
+        position: [Math.round(model.position.x), Math.round(model.position.y)],
+        displaySize: [Math.round(model.width), Math.round(model.height)],
+    });
 }
 
 function fitBackground(sprite) {
@@ -247,17 +274,46 @@ async function loadTexture(url) {
     return PIXI.Texture.from(bitmap);
 }
 
+// skins.json per the chosen model; a missing/failed file just means no
+// placement/hotspot data
+async function loadSkins() {
+    try {
+        const resp = await fetch(`assets/${MODEL}/skins.json`);
+        return resp.ok ? await resp.json() : null;
+    } catch (err) {
+        console.error('[mizu] skins.json load failed:', err);
+        return null;
+    }
+}
+
+// nagami index.json mirror (designHeight 1080, defaultScale 52); the
+// fallback constants keep placement working without the file
+async function loadPlacementIndex() {
+    try {
+        const resp = await fetch('data/l2d_index.json');
+        if (resp.ok) return await resp.json();
+    } catch (err) {
+        console.error('[mizu] index.json load failed:', err);
+    }
+    return { designHeight: 1080, defaultScale: 52 };
+}
+
 async function main() {
-    model = await PIXI.live2d.Live2DModel.from(
-        `assets/${MODEL}/${MODEL}.model3.json`, { autoInteract: false });
+    const [loaded, index, skins] = await Promise.all([
+        PIXI.live2d.Live2DModel.from(
+            `assets/${MODEL}/${MODEL}.model3.json`, { autoInteract: false }),
+        loadPlacementIndex(),
+        loadSkins(),
+    ]);
+    model = loaded;
     // 0.4.0 hardcodes motionManager.groups.idle = 'Idle', but AL models name
     // the group 'idle' — auto-idle silently no-ops without this remap.
     model.internalModel.motionManager.groups.idle = Object.keys(
         model.internalModel.settings.motions).find(k => k.toLowerCase() === 'idle') ?? 'Idle';
-    fit(model);
+    applyPlacement(skins, index);
     app.stage.addChild(model);
     app.stage.addChild(badgeLayer);
-    window.addEventListener('resize', () => fit(model));
+    window.addEventListener('resize', () => applyPlacement(skins, index));
     // 0.4.0 leaves a stale idle reservation behind when an idle motion is
     // requested but never started (state.complete() clears currentGroup but
     // nothing clears reservedIdleGroup), so shouldRequestIdleMotion() never
@@ -274,6 +330,8 @@ async function main() {
     // probe for render checks (handover A4): page state without pixels
     window.__mizu = {
         app, model, bg: null, hotspots,
+        // R1a.3 stores paraRange for the R1b.1 mouse-follow clamps
+        paraRange: skins?.paraRange ?? null,
         get tipsOn() { return tipsOn; },
         toggleTips: () => tipsToggle.click(),
     };
@@ -292,10 +350,9 @@ async function main() {
         console.error('[mizu] bg load failed:', err);
     }
 
-    // hotspots from skins.json; a missing/failed file just means no zones
+    // hotspots from the skins.json loaded alongside the model
     try {
-        const resp = await fetch(`assets/${MODEL}/skins.json`);
-        buildHotspots(resp.ok ? await resp.json() : null);
+        buildHotspots(skins);
         setupHotspotEvents();
     } catch (err) {
         console.error('[mizu] hotspot setup failed:', err);
