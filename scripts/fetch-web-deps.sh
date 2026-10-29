@@ -16,7 +16,7 @@ mkdir -p "$VENDOR"
 # LICENSE text is vendored alongside each bundle (MIT requires it).
 DEPS=(
     "pixi.min.js|6.5.10|https://cdn.jsdelivr.net/npm/pixi.js@6.5.10/dist/browser/pixi.min.js|https://cdn.jsdelivr.net/npm/pixi.js@6.5.10/LICENSE"
-    "pixi-live2d-display.min.js|0.4.0|https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/index.min.js|https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/LICENSE"
+    "pixi-live2d-display.min.js|0.4.0|https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism4.min.js|https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/LICENSE"
 )
 
 entries=""

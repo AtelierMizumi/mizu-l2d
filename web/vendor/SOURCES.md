@@ -13,5 +13,5 @@ and web/assets are gitignored.
 | file | version | source URL | sha256 | fetched |
 |---|---|---|---|---|
 | pixi.min.js | 6.5.10 | https://cdn.jsdelivr.net/npm/pixi.js@6.5.10/dist/browser/pixi.min.js | 403f2f2ee8145fa17f60c5c89403056efe2680e5096ec2762036486914ed19c5 | 2026-10-29 |
-| pixi-live2d-display.min.js | 0.4.0 | https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/index.min.js | a89a80b019293dd22ff7357469569fdc456011f93535ded81bfa3f592d64fa6e | 2026-10-29 |
+| pixi-live2d-display.min.js | 0.4.0 | https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism4.min.js | af1267e6d52759b245766c578d905bfa025b532d5c3cc727c370957c4409e21b | 2026-10-29 |
 
