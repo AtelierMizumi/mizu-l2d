@@ -9,15 +9,23 @@ socket in $XDG_RUNTIME_DIR runs the commands in SPEC §5.3 against every view.
 usage: wall/mizu-l2d-wall.py [--url URL] [--no-serve]
   --url       page to load (default http://127.0.0.1:8787/?wall=1)
   --no-serve  do not start scripts/serve.py when nothing listens on the port
+  --outputs   connectors to draw on (overrides config)
+
+config: $XDG_CONFIG_HOME/mizu-l2d/config.toml (default ~/.config/mizu-l2d/config.toml)
+  schema = 1
+  [wall]
+  outputs = ["eDP-1"]      # omit for every output
 """
 import argparse
 import atexit
 import json
 import os
+import signal
 import socket
 import subprocess
 import sys
 import threading
+import tomllib
 import urllib.parse
 from pathlib import Path
 
@@ -50,11 +58,29 @@ SERVE = ROOT / "scripts" / "serve.py"
 PROTOCOL_VERSION = 1
 DEFAULT_URL = "http://127.0.0.1:8787/?wall=1"
 JS_TIMEOUT_S = 5.0
+LIVE_PUSH_S = 5
+QS_LIVE = ["qs", "ipc", "-c", "mizu", "call", "mizu", "liveWallpaper"]
+CONFIG_PATH = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "mizu-l2d" / "config.toml"
+KNOWN_CONFIG_KEYS = {"schema", "wall"}
 
 
 def socket_path():
     runtime = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
     return Path(runtime) / "mizu-l2d-wall.sock"
+
+
+def load_outputs(cli_outputs):
+    """Connector names to draw on, from --outputs or [wall] outputs in config.toml.
+    None means every output. Unknown config keys are reported, not dropped (SPEC §4.4)."""
+    if cli_outputs is not None:
+        return cli_outputs
+    if not CONFIG_PATH.exists():
+        return None
+    with open(CONFIG_PATH, "rb") as f:
+        config = tomllib.load(f)
+    for key in sorted(set(config) - KNOWN_CONFIG_KEYS):
+        print(f"[wall] unknown config key ignored: {key}", file=sys.stderr)
+    return config.get("wall", {}).get("outputs")
 
 
 def port_open(host, port):
@@ -66,10 +92,11 @@ def port_open(host, port):
 
 
 class WallApp(Gtk.Application):
-    def __init__(self, url, control):
+    def __init__(self, url, control, outputs):
         super().__init__(application_id="dev.mizu.l2d.wall")
         self.url = url
         self.control = control
+        self.outputs = outputs  # None = every output
         self.views = {}  # monitor connector name -> (window, view)
 
     def do_activate(self):
@@ -82,7 +109,23 @@ class WallApp(Gtk.Application):
         monitors.connect("items-changed", self.on_monitors_changed)
         self.sync_monitors()
         self.control.start(self)
+        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, self.quit_on_signal)
+        GLib.timeout_add_seconds(LIVE_PUSH_S, self.push_live_tick)
         self.hold()
+
+    def quit_on_signal(self):
+        self.quit()
+        return GLib.SOURCE_REMOVE
+
+    def do_shutdown(self):
+        # hand the screens back so the owner's static wallpaper and widgets return
+        push_live_screens([])
+        Gtk.Application.do_shutdown(self)
+
+    def push_live_tick(self):
+        # re-sent periodically: a restarted shell starts with no live screens
+        push_live_screens(sorted(self.views))
+        return GLib.SOURCE_CONTINUE
 
     def on_monitors_changed(self, *_):
         self.sync_monitors()
@@ -92,7 +135,9 @@ class WallApp(Gtk.Application):
         current = {}
         for i in range(monitors.get_n_items()):
             mon = monitors.get_item(i)
-            current[self.monitor_key(mon)] = mon
+            key = self.monitor_key(mon)
+            if self.outputs is None or key in self.outputs:
+                current[key] = mon
         for key in list(self.views):
             if key not in current:
                 window, _view = self.views.pop(key)
@@ -102,6 +147,7 @@ class WallApp(Gtk.Application):
             if key not in self.views:
                 print(f"[wall] monitor added: {key}", flush=True)
                 self.views[key] = self.make_surface(mon)
+        push_live_screens(sorted(self.views))
 
     @staticmethod
     def monitor_key(mon):
@@ -246,6 +292,16 @@ class Control:
             view.evaluate_javascript(script, -1, None, None, None, callback_for(view), None)
 
 
+def push_live_screens(names):
+    """Tells the owner's shell which screens the live wallpaper covers (see
+    WallpaperService.liveScreens in the mizu quickshell config). Failures only
+    mean the shell is not running; the next tick retries."""
+    try:
+        subprocess.run([*QS_LIVE, ",".join(names)], timeout=5, capture_output=True)
+    except (OSError, subprocess.TimeoutExpired) as err:
+        print(f"[wall] shell IPC failed: {err}", file=sys.stderr)
+
+
 def ensure_server(url, serve):
     parsed = urllib.parse.urlsplit(url)
     host, port = parsed.hostname or "127.0.0.1", parsed.port or 80
@@ -265,9 +321,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--url", default=DEFAULT_URL)
     parser.add_argument("--no-serve", action="store_true")
+    parser.add_argument("--outputs", help="comma-separated connector names, e.g. eDP-1,HDMI-A-1")
     args = parser.parse_args()
+    cli = [o.strip() for o in args.outputs.split(",") if o.strip()] if args.outputs else None
+    outputs = load_outputs(cli)
+    print(f"[wall] outputs: {outputs if outputs is not None else 'all'}", flush=True)
     ensure_server(args.url, serve=not args.no_serve)
-    app = WallApp(args.url, Control())
+    app = WallApp(args.url, Control(), outputs)
     return app.run(None)
 
 
