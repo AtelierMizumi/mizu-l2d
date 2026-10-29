@@ -1,9 +1,11 @@
 # STATUS — state ledger (update at the END of every work unit)
 
 Last updated: 2026-10-30
-Last agent: ZCode (R1b.2 hotspots + interaction tips, tested on Jean Bart)
-Next unit: **R1a.3** (consume skins.json offset/scale, PLAN §8 R1). R1b.2 committed.
+Last agent: Claude (R1a.3 committed, R1a.5 placement editor, tested on gaoxiong_7 and rangbaer_3)
+Next unit: **R1c.2** (picker with filter and sort, PLAN §8 R1 item 9). R1a.5 done.
 Handover for continuation: **docs/HANDOVER.md** (read it first; it lists owner-only steps).
+Test model (owner, 2026-10-30): **gaoxiong_7** replaces aersasi_3 (Alsace, broken) for all
+tests and screenshots; the web viewer's default `?model=` is now gaoxiong_7. See PLAN §9.
 
 ## Done (verified)
 - Spikes S1/S2/S4 PASS (design doc §2). Pointer input to background layer
@@ -73,6 +75,23 @@ Handover for continuation: **docs/HANDOVER.md** (read it first; it lists owner-o
   re-clicks) and regression-checked on aersasi_3 (66 drags → 48 playable
   zones, fallback inert). drags[].ignore/reactCondition stay unapplied
   (PLAN §5 unverified; the cooldown alone prevents retrigger spam).
+- R1a.3 done (verified, commit 08bc351): nagami home-screen placement from
+  skins.json + data/l2d_index.json (uiScale = viewport height / 1080, scale
+  = (scale ?? 52) / pixelsPerUnit · uiScale, effective offset per the site
+  formula). gaoxiong_7 (full body, bottom near the viewport edge) and
+  rangbaer_3 (no skins offset/scale, default placement) render with no
+  console errors.
+- R1a.5 done (verified, plan unit added in PLAN §8): placement editor. Drag
+  the empty stage (4 px threshold), wheel-zoom around the cursor (0.3x–3x),
+  hover-only reset button. View persists per prefab (`mizu.placement.<prefab>`,
+  design px) and `mizu.settings.<prefab>` holds tips. Browser-verified on
+  gaoxiong_7 and rangbaer_3: drag moves by exactly the dragged px / uiScale,
+  wheel keeps the model point under the cursor fixed (drift 0.000), zoom clamps
+  at 0.3 and 3, reload restores the view, reset deletes the key, resize to
+  1920×1080 lands on the expected position, hotspot clicks fire without drag,
+  and the 1 s cooldown holds.
+- Test model: gaoxiong_7 (owner-directed; aersasi_3 is broken and must not be
+  used for tests or screenshots).
 
 ## In progress
 - S0-perf (SPEC §12): scripts in `spikes/s0-perf/` (committed in `cd21547`). Side A
@@ -80,7 +99,8 @@ Handover for continuation: **docs/HANDOVER.md** (read it first; it lists owner-o
   a live Wayland session. Both must be run by the owner on the desktop.
 
 ## Next
-- R1a.2 → R1a.3 → R1a.4 (PLAN §8). S0-perf runs before R2 (SPEC §12).
+- R1c.2 (model picker with filter and sort, PLAN §8 R1 item 9), then R1d
+  dialogue (bubble + voice). S0-perf runs before R2 (SPEC §12).
 
 ## Blockers / open questions
 - `skins.json` scale/offset unit semantics unknown (resolved empirically in

@@ -178,7 +178,7 @@ Agent steps, in order:
 - A3. R0.3: write `web/index.html` and `web/main.js`, a pixi scene with transparent
   background. Symlink `web/assets` to `~/.local/share/mizu/l2d` (gitignored). Test with
   `python3 -m http.server 8787 -d web`.
-- A4. Render `aersasi_3` in the page (R1a.1). Check the console for errors. Use a browser
+- A4. Render `gaoxiong_7` in the page (R1a.1; test model, never `aersasi_3`). Check the console for errors. Use a browser
   tool if one is connected, or hand a check to the owner.
 - A5. TDD slice S1 (catalog): read the manifest, list models, return preview metadata. Test
   with `node:test` (no dependencies). Red, then green, then one slice at a time.

@@ -327,11 +327,11 @@ S = <1 session, M = ~1 session, L = plan for 2+ sessions with commit points.
    `main.js`, and `assets -> ~/.local/share/mizu/l2d` symlink (gitignored); serve with
    `python3 -m http.server 8787 -d web` (same-origin for fetch/CORS-free
    textures). *Accept:* `curl -s localhost:8787/index.html` 200;
-   `curl -sI localhost:8787/assets/aersasi_3/aersasi_3.model3.json` 200.
+   `curl -sI localhost:8787/assets/gaoxiong_7/gaoxiong_7.model3.json` 200.
 
 ### R1 — viewer web MVP in a normal browser (M; the core deliverable)
 1. `R1a.1` Page renders the model: PIXI app with transparent background;
-   `Live2DModel.from('assets/aersasi_3/aersasi_3.model3.json',
+   `Live2DModel.from('assets/gaoxiong_7/gaoxiong_7.model3.json',
    {autoInteract:false})`; idle motion looping; fit model to ~90% viewport
    height, anchored bottom-center. *Accept:* character visibly renders and
    idles in the browser (screenshot via browser tooling or manual).
@@ -348,6 +348,17 @@ S = <1 session, M = ~1 session, L = plan for 2+ sessions with commit points.
    `part` names (`TouchIdle1`…) match drawable ids, part ids, or neither.
    Print counts. *Accept:* a written note in STATUS.md concluding the match
    rule for D-HIT (this decides R1b's hit-test input).
+4a. `R1a.5` Placement editor (added 2026-10-30, after R1a.3): drag an empty
+   stage point (more than 4 px = drag, hotspot presses never drag); wheel zooms
+   around the cursor, clamped 0.3x–3x of the nagami default; reset button
+   (hover-only, left of the tips toggle). The user view persists per prefab in
+   `localStorage` `mizu.placement.<prefab>` = `{dx, dy, zoom}` in design px
+   (multiplied by uiScale when applied, so it survives resizes). Shared
+   settings layer `mizu.settings.<prefab>` (`tips` now; `mute` for R1d).
+   *Accept:* drag, wheel and reset work on gaoxiong_7 and rangbaer_3; a reload
+   keeps the view; reset returns to the default and deletes the key; a
+   resize keeps the view proportional; hotspot clicks still fire without
+   dragging.
 5. `R1b.1` Mouse follow: pointer → `model.focus(x, y)`-equivalent driving
    `ParamAngleX/Y` (+eye params) clamped by `paraRange`, with smoothing.
    *Accept:* head/eyes track the cursor within the clamped range (visual).
@@ -359,7 +370,7 @@ S = <1 session, M = ~1 session, L = plan for 2+ sessions with commit points.
    its motion; ≥3 distinct hotspots verified visually.
 7. `R1b.3` Idle poses: surface the idle-pose list (from model3.json groups
    and/or `drags[].idle`) in a minimal side panel; clicking plays it; auto
-   cycle option. *Accept:* 21 idle poses playable for aersasi_3.
+   cycle option. *Accept:* 21 idle poses playable for gaoxiong_7 (test model).
 8. `R1c.1` Calibration against the site: screenshot ours vs the site's
    rendering of the same skin (browser tab), iterate `scale`/`offset`
    interpretation until placement differs ≤ ~5%. Write the derived unit
@@ -368,7 +379,7 @@ S = <1 session, M = ~1 session, L = plan for 2+ sessions with commit points.
 9. `R1c.2` Model carousel + mapping: a simple dropdown/list built from
    `l2d_mapping.json` (names EN/CN), `fetch-model.sh` integration
    (download-on-demand), switch model without reload bugs. *Accept:* switch
-   between aersasi_3 and abeikelongbi_3 live; no texture/VRAM leak across 10
+   between gaoxiong_7 and abeikelongbi_3 live; no texture/VRAM leak across 10
    switches (measure via `performance.memory` / renderer info + process RSS).
 
 ### R2 — embed as the wallpaper (M–L)
@@ -442,6 +453,11 @@ webkit overhead measured unacceptable on the iGPU).
   `./build/mizu-l2d-ctl ping|status|perf` respond; screenshots via
   `--screenshot /tmp/shot.png` + `SIGUSR1` (numbered files); interaction via
   `spikes/s1-pointer` virtual-pointer sweeps.
+- **Test model (owner rule, 2026-10-30):** never use `aersasi_3` (Alsace) for
+  any test or screenshot — it is broken. Use `gaoxiong_7` (Takao "Inner
+  Cultivation"; 111 motion groups, 62 touch groups, 82 drags, clothed and
+  SFW). Backup: `guanghui_9` (Illustrious, sheer white gown). Do not test with
+  `chaijun_6`, `zhangwu_2`, `baifeng_3`, or `wuzang_4` (revealing outfits).
 - **Web viewer (R1):** serve `web/` on :8787; verify in a real browser;
   screenshots of idle/motion/zoom states saved under `docs/shots/`; the
   browser automation used to research nagami (ZCode in-app browser) can drive
@@ -461,7 +477,7 @@ webkit overhead measured unacceptable on the iGPU).
   - build: `cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo && ninja -C build`
   - run daemon: `./build/mizu-l2d [--screenshot /tmp/shot.png] [--layer bottom]`
   - ctl: `./build/mizu-l2d-ctl ping|status|perf|camera ...`
-  - fetch model: `scripts/fetch-model.sh aersasi_3`
+  - fetch model: `scripts/fetch-model.sh gaoxiong_7`
   - empty-workspace test: `niri msg action focus-workspace-down` / `-up`
 - Key files: `src/app.{hpp,cpp}` (Wayland), `src/gl_core.*` (EGL),
   `src/ipc.*` (JSON-lines + flat JSON), `src/config.*`, `src/main.cpp`,
