@@ -398,6 +398,11 @@ S = <1 session, M = ~1 session, L = plan for 2+ sessions with commit points.
    and chatter persist across reload; chatter fires with short intervals.
 
 ### R2 — embed as the wallpaper (M–L)
+*Status 2026-10-30:* R2a.1 and R2a.2 verified on niri (see STATUS.md).
+R2b.1 is partly done: `wall/mizu-l2d-wall.py` runs the socket with ping, status,
+page, camera, motion and model; `wall/mizu-l2d-ctl.py` is the CLI. Not yet:
+`quiet`/`interact` events and `perf` (R2b.1 tail), R2b.2 (idle fps and cover
+detection), and R2b.3 (systemd unit, niri spawn, hotplug and reboot test).
 1. `R2a.1` Install webkitgtk-6.0 + gtk4-layer-shell (GTK4 pair); write
    `wall/mizu-l2d-wall.py` (PyGObject): one `Gtk.Application` window per
    monitor, `gtk4layershell` init → BACKGROUND layer, anchor all sides,

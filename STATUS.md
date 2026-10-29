@@ -1,8 +1,8 @@
 # STATUS — state ledger (update at the END of every work unit)
 
 Last updated: 2026-10-30
-Last agent: Claude (R1a.3, R1a.5, R1c.2 and R1d; tested on gaoxiong_7, rangbaer_3/4, abeikelongbi_3, aidang_2, wuqi_3)
-Next unit: **R2** (wallpaper embed, PLAN §8). R1 is done. Open: the wallpaper mode must mute (R1d).
+Last agent: Claude (R1 complete; R2a.1, R2a.2 and part of R2b.1 done; tested on the live niri session)
+Next unit: **R2b.2** (quiet/cover detection and idle fps) and **R2b.3** (systemd unit). Both need owner decisions, see R2 below.
 Handover for continuation: **docs/HANDOVER.md** (read it first; it lists owner-only steps).
 Test model (owner, 2026-10-30): **gaoxiong_7** replaces aersasi_3 (Alsace, broken) for all
 tests and screenshots; the web viewer's default `?model=` is now gaoxiong_7. See PLAN §9.
@@ -147,6 +147,40 @@ tests and screenshots; the web viewer's default `?model=` is now gaoxiong_7. See
     zones (only touch_idle* and touch_drag*), so its taps stay silent. The head
     tap test uses rangbaer_4, which has the head zone and the headtouch key.
     aersasi_3 was not used.
+- R2a.1 done (verified on niri): `wall/mizu-l2d-wall.py`, one GTK4 window per
+  monitor on the BACKGROUND layer (gtk4-layer-shell, namespace `mizu-l2d`,
+  anchored to all four edges, exclusive zone -1). Each holds a WebKitGTK 6.0 view
+  on `http://127.0.0.1:8787/?wall=1` with a transparent background.
+  - Linking: gtk4-layer-shell must load before libwayland. The script re-execs
+    itself with `LD_PRELOAD=/usr/lib/libgtk4-layer-shell.so`. Without it,
+    windows fall back to tiled toplevels on the user's workspace. The script now
+    refuses to start in that case (`LayerShell.is_layer_window` check).
+  - `niri msg --json layers`: `mizu-l2d` Background on HDMI-A-1 and eDP-1.
+  - eDP-1 capture (`screenshot-screen` via the clipboard, on empty workspace 3):
+    the scene renders on the wallpaper under the Quickshell bar; WebGL works.
+  - HDMI-A-1: the layer is present and the page is live. A visual capture was
+    not taken because that output's active workspace held the owner's windows.
+  - Survives `niri msg action load-config-file`: same host PID, both layers kept.
+  - Hotplug: not tested (no monitor unplugged).
+  - The owner's own `mizu-wallpaper` layer (Background, both outputs) was left
+    alone. Our host was stopped after testing, so the desktop is as it was.
+- R2a.2 done (verified): pointer reaches the page through the background layer.
+  `spikes/r2a2-input/vptr-click.c` (test-only, wlr virtual pointer) clicked
+  eDP-1 at the rangbaer_4 head zone (958, 320). That view's `lastTap` became
+  touch_head and HDMI's stayed None. Mute is on by default in wall mode.
+- R2b.1 partly done: JSON-lines control socket at `$XDG_RUNTIME_DIR/mizu-l2d-wall.sock`.
+  Commands: ping, status, page, camera {zoom|pos|reset}, motion, model. Each runs
+  against every view and replies per output. Checked with `wall/mizu-l2d-ctl.py`:
+  motion touch_head → true, unknown group → false, camera zoom 1.4 visibly zooms
+  the wallpaper (eDP capture), reset restores, model switch works. Not yet:
+  `quiet`/`interact` events and `perf`.
+  - Bug fixed on the way: JS replies must not block the GTK thread. The first
+    version deadlocked, and every reply timed out.
+- Wall mode (`?wall=1`): audio muted by default, and separate settings and
+  placement keys (`.wall`) so the web viewer's state is untouched. Controls
+  (tips, reset, voice, picker) are hidden with `body.wall`. Dialogue bubbles stay.
+- `scripts/serve.py` now sends `Cache-Control: no-cache` for static files, so
+  WebKit picks up edits without a cache clear.
 - Leftover (owner to delete): `~/.local/share/mizu/verify-bak/` holds a
   duplicate of aidang_2 used for the byte comparison. The agent's `rm` was
   denied, so it is still there.
