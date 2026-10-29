@@ -2,7 +2,7 @@
 
 Last updated: 2026-10-29
 Last agent: ZCode (R0.2 web vendor unit)
-Next unit: **R0.3** (see docs/PLAN.md §8). R0.2 committed.
+Next unit: **R1a.1** (render aersasi_3 in the page, PLAN §8 R1). R0.3 committed.
 Handover for continuation: **docs/HANDOVER.md** (read it first; it lists owner-only steps).
 
 ## Done (verified)
@@ -24,6 +24,11 @@ Handover for continuation: **docs/HANDOVER.md** (read it first; it lists owner-o
   `web/vendor/SOURCES.md`; package LICENSE texts vendored as `*.LICENSE`.
   `git check-ignore` confirms the Cubism Core, `web/data/` and `web/assets`
   stay out of git.
+- R0.3 done (verified): `web/index.html` + `web/main.js` transparent PIXI
+  scaffold; `web/assets -> ~/.local/share/mizu/l2d` symlink (gitignored).
+  Served via `python3 -m http.server 8787 -d web`; curl checks returned 200
+  for index.html, the aersasi_3 model3.json through the symlink, and both
+  vendor bundles.
 
 ## In progress
 - S0-perf (SPEC §12): scripts in `spikes/s0-perf/` (committed in `cd21547`). Side A
