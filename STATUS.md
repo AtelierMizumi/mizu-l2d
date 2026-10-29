@@ -1,8 +1,8 @@
 # STATUS — state ledger (update at the END of every work unit)
 
 Last updated: 2026-10-30
-Last agent: Claude (R1a.3 committed, R1a.5 placement editor, tested on gaoxiong_7 and rangbaer_3)
-Next unit: **R1c.2** (picker with filter and sort, PLAN §8 R1 item 9). R1a.5 done.
+Last agent: Claude (R1a.3, R1a.5 placement editor and R1c.2 picker, tested on gaoxiong_7 and abeikelongbi_3)
+Next unit: **R1d** (dialogue: bubble + voice, see the pasted unit 3 plan). R1a.5 and R1c.2 done.
 Handover for continuation: **docs/HANDOVER.md** (read it first; it lists owner-only steps).
 Test model (owner, 2026-10-30): **gaoxiong_7** replaces aersasi_3 (Alsace, broken) for all
 tests and screenshots; the web viewer's default `?model=` is now gaoxiong_7. See PLAN §9.
@@ -92,6 +92,36 @@ tests and screenshots; the web viewer's default `?model=` is now gaoxiong_7. See
   and the 1 s cooldown holds.
 - Test model: gaoxiong_7 (owner-directed; aersasi_3 is broken and must not be
   used for tests or screenshots).
+- R1c.2 done (verified): `web/picker.js` panel (top-right, glass style) lists
+  167 ships / 239 skins from `data/l2d_mapping.json`, sorted by EN name with
+  the ship id as tie-break. Search matches EN/CN/JP and folds accents
+  ("agir" finds Ägir). The "Đã tải" chip filters on disk state. The state comes
+  from a HEAD probe of `assets/<prefab>/<prefab>.model3.json`, cached in
+  `mizu.downloaded`. Missing skins get a Tải button that calls
+  `scripts/serve.py` `/api/download` (validated against the catalog, one
+  download at a time, streams the `fetch-model.sh --bg` log, ends with
+  `[exit N]`). `web/main.js` gained `loadModel(prefab)` / `unloadCurrent()`
+  (destroy model + textures, close the bg ImageBitmap, drop badges and
+  hotspots), with a stale-load token and one ticker and one resize listener.
+  Browser-verified on gaoxiong_7 and abeikelongbi_3:
+  - Tải: aidang_2 was moved aside and re-downloaded through the picker in 18 s.
+    The 20 files match the backup byte-for-byte (`diff -rq`).
+  - Filter: moving lafei_4 aside gives 238 skins with the chip on (Laffey
+    hidden), and a Tải button appears for the missing skin. lafei_4 was moved
+    back.
+  - Switching: 60+ live switches via real picker clicks, no page errors. The
+    stage keeps 3 children and the ticker keeps 3 listeners. The base-texture
+    count alternates 63 ↔ 6 with no growth. The bg renders after the switches.
+  - Memory: the texture manager's `renderer.texture.count` is undefined in this
+    PIXI build, so the base-texture cache stands in as the GPU proxy. Browser
+    RSS measured across 60 switches moved 1547 → 1736 MB and then fell back to
+    1652 MB, so it fluctuates and shows no steady climb. This is not a rigorous
+    VRAM measurement; a profiler run would be needed to settle it.
+  - Data fix: unresolved `{namecode:N}` CN names are stripped from display and
+    search.
+- Leftover (owner to delete): `~/.local/share/mizu/verify-bak/` holds a
+  duplicate of aidang_2 used for the byte comparison. The agent's `rm` was
+  denied, so it is still there.
 
 ## In progress
 - S0-perf (SPEC §12): scripts in `spikes/s0-perf/` (committed in `cd21547`). Side A
@@ -99,8 +129,7 @@ tests and screenshots; the web viewer's default `?model=` is now gaoxiong_7. See
   a live Wayland session. Both must be run by the owner on the desktop.
 
 ## Next
-- R1c.2 (model picker with filter and sort, PLAN §8 R1 item 9), then R1d
-  dialogue (bubble + voice). S0-perf runs before R2 (SPEC §12).
+- R1d dialogue (bubble + voice, build-words.py). S0-perf runs before R2 (SPEC §12).
 
 ## Blockers / open questions
 - `skins.json` scale/offset unit semantics unknown (resolved empirically in

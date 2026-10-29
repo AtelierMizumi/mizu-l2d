@@ -22,7 +22,9 @@ cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo && ninja -C build
 
 Assets live OUTSIDE the repo in `~/.local/share/mizu/l2d/` (fetch with
 `scripts/fetch-model.sh <prefab>`). The web viewer is served from `web/`
-(R0.3 onward): `python3 -m http.server 8787 -d web`.
+(R0.3 onward): `python3 scripts/serve.py 8787` (R1c.2: serves `web/` on
+127.0.0.1 plus the on-demand `/api/download` used by the picker's Tải button;
+plain `python3 -m http.server 8787 -d web` works for everything else).
 
 ## Hard rules
 
