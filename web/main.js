@@ -19,7 +19,9 @@
 // R1a.5: placement editor — drag empty stage to move, wheel to zoom around the
 // cursor (0.3x–3x of the nagami default), reset button. The user view is kept
 // per prefab in localStorage in design px, so it scales with the window.
-const MODEL = new URLSearchParams(location.search).get('model') || 'gaoxiong_7';
+// R1c.2: model switching without reload (loadModel) driven by picker.js; the
+// current prefab lives in ?model= so a reload keeps it.
+let MODEL = new URLSearchParams(location.search).get('model') || 'gaoxiong_7';
 const app = new PIXI.Application({
     backgroundAlpha: 0,
     resizeTo: window,
@@ -48,14 +50,14 @@ const resetBtn = document.getElementById('view-reset');
 tipsToggle.addEventListener('click', () => setTips(!tipsOn));
 resetBtn.addEventListener('click', resetView);
 
-function setTips(on) {
+function setTips(on, save = true) {
     tipsOn = on;
     tipsOnAt = performance.now() / 1000;
     tipsToggle.classList.toggle('on', tipsOn);
     tipsToggle.setAttribute('aria-pressed', String(tipsOn));
     badgeLayer.visible = tipsOn;
     setHovered(null);
-    saveSettings({ tips: tipsOn });
+    if (save) saveSettings({ tips: tipsOn });
 }
 
 // ---------- per-prefab storage (R1a.5) ----------
@@ -245,7 +247,7 @@ function setupPointerEvents() {
     canvas.addEventListener('pointermove', (e) => {
         const p = canvasPoint(e);
         pointerGlobal.copyFrom(p);
-        if (!press) return;
+        if (!press || !model) return;
         if (!press.dragging) {
             if (Math.hypot(p.x - press.start.x, p.y - press.start.y) <= DRAG_THRESHOLD) return;
             press.dragging = true;
@@ -256,6 +258,7 @@ function setupPointerEvents() {
         press.last = p;
     });
     canvas.addEventListener('pointerdown', (e) => {
+        if (!model) return;
         const p = canvasPoint(e);
         const h = hotspotAt(model.toModelPosition(p, tempModelPoint));
         if (h) {
@@ -277,6 +280,7 @@ function setupPointerEvents() {
     });
     canvas.addEventListener('wheel', (e) => {
         e.preventDefault();
+        if (!model) return;
         zoomAt(canvasPoint(e), Math.exp(-e.deltaY * 0.001));
         saveView();
     }, { passive: false });
@@ -373,10 +377,9 @@ function fitBackground(sprite) {
     sprite.position.set((window.innerWidth - texW * scale) / 2, (window.innerHeight - texH * scale) / 2);
 }
 
-// skin -> bg image URL, resolved from the mirrored nagami mapping
-async function findBackgroundUrl(prefab) {
-    const mapping = await (await fetch('data/l2d_mapping.json')).json();
-    for (const ship of Object.values(mapping)) {
+// skin -> bg image URL, resolved from the mirrored nagami mapping (catalog)
+function findBackgroundUrl(prefab) {
+    for (const ship of Object.values(catalog)) {
         const skin = (ship.skins || []).find(s => s.prefab === prefab);
         if (skin && skin.bg) return `assets/bg/${skin.bg}.png`;
     }
@@ -396,9 +399,9 @@ async function loadTexture(url) {
 
 // skins.json per the chosen model; a missing/failed file just means no
 // placement/hotspot data
-async function loadSkins() {
+async function loadSkins(prefab) {
     try {
-        const resp = await fetch(`assets/${MODEL}/skins.json`);
+        const resp = await fetch(`assets/${prefab}/skins.json`);
         return resp.ok ? await resp.json() : null;
     } catch (err) {
         console.error('[mizu] skins.json load failed:', err);
@@ -418,78 +421,161 @@ async function loadPlacementIndex() {
     return { designHeight: 1080, defaultScale: 52 };
 }
 
-async function main() {
-    const [loaded, index, skins] = await Promise.all([
-        PIXI.live2d.Live2DModel.from(
-            `assets/${MODEL}/${MODEL}.model3.json`, { autoInteract: false }),
-        loadPlacementIndex(),
-        loadSkins(),
+// nagami catalog (ship -> skins with names + bg) and the placement index;
+// both are read once. A missing catalog only disables the picker.
+let catalog = {};
+let placementIndex = null;
+let picker = null;
+let bgSprite = null;
+let loadToken = 0; // a newer loadModel() call makes older in-flight loads drop their result
+
+async function loadCatalog() {
+    try {
+        const resp = await fetch('data/l2d_mapping.json');
+        if (resp.ok) return await resp.json();
+    } catch (err) {
+        console.error('[mizu] catalog load failed:', err);
+    }
+    return {};
+}
+
+// Frees a texture's GL upload and closes its decoded ImageBitmap. The bitmap
+// is not released by destroy() alone; without close() its pixels wait for GC,
+// which showed up as steady RSS growth across model switches.
+function disposeTexture(texture) {
+    const bitmap = texture.baseTexture?.resource?.source;
+    texture.destroy(true);
+    bitmap?.close?.();
+}
+
+// Drops the current model, its hotspots and badges, and the bg sprite, freeing
+// their GL textures. Called before a new model is attached.
+function unloadCurrent() {
+    press = null;
+    hoveredHotspot = null;
+    tipsLabel.hidden = true;
+    app.view.style.cursor = 'default';
+    for (const badge of badgeLayer.removeChildren()) badge.destroy({ children: true });
+    hotspots = [];
+    if (model) {
+        app.stage.removeChild(model);
+        model.destroy({ children: true, texture: true, baseTexture: true });
+        model = null;
+    }
+    if (bgSprite) {
+        app.stage.removeChild(bgSprite);
+        const texture = bgSprite.texture;
+        bgSprite.destroy(false);
+        disposeTexture(texture);
+        bgSprite = null;
+    }
+}
+
+async function loadModel(prefab) {
+    const token = ++loadToken;
+    const bgUrl = findBackgroundUrl(prefab);
+    const [loaded, skins, bgTexture] = await Promise.all([
+        PIXI.live2d.Live2DModel.from(`assets/${prefab}/${prefab}.model3.json`, { autoInteract: false }),
+        loadSkins(prefab),
+        // scene background; a bg failure must not kill the model render
+        bgUrl ? loadTexture(bgUrl).catch(err => {
+            console.error('[mizu] bg load failed:', err);
+            return null;
+        }) : null,
     ]);
+    if (token !== loadToken) {
+        loaded.destroy({ children: true, texture: true, baseTexture: true });
+        if (bgTexture) disposeTexture(bgTexture);
+        return;
+    }
+
+    unloadCurrent();
+    MODEL = prefab;
+    history.replaceState(null, '', `?model=${prefab}`);
     model = loaded;
     // 0.4.0 hardcodes motionManager.groups.idle = 'Idle', but AL models name
     // the group 'idle' — auto-idle silently no-ops without this remap.
     model.internalModel.motionManager.groups.idle = Object.keys(
         model.internalModel.settings.motions).find(k => k.toLowerCase() === 'idle') ?? 'Idle';
-    setupPlacement(skins, index);
+    setupPlacement(skins, placementIndex);
     app.stage.addChild(model);
-    app.stage.addChild(badgeLayer);
-    setupPointerEvents();
-    window.addEventListener('resize', renderPlacement);
-    // 0.4.0 leaves a stale idle reservation behind when an idle motion is
-    // requested but never started (state.complete() clears currentGroup but
-    // nothing clears reservedIdleGroup), so shouldRequestIdleMotion() never
-    // fires again and auto-idle silently stops. Drop the stale reservation
-    // whenever no motion is current; state.start() re-sets it legitimately.
-    app.ticker.add(() => {
-        const mm = model.internalModel.motionManager;
-        if (mm.state.currentGroup === undefined && mm.state.reservedIdleGroup !== undefined) {
-            mm.state.setReservedIdle(undefined, undefined);
-        }
-        // badges + hit-test bboxes track the animated vertices every tick
-        if (hotspots.length) updateHotspots();
-    });
-    // probe for render checks (handover A4): page state without pixels
-    window.__mizu = {
-        app, model, bg: null, hotspots,
-        // R1a.3 stores paraRange for the R1b.1 mouse-follow clamps
-        paraRange: skins?.paraRange ?? null,
-        get tipsOn() { return tipsOn; },
-        get view() { return { ...view }; },
-        toggleTips: () => tipsToggle.click(),
-        resetView: () => resetView(),
-    };
-
-    // scene background; a bg failure must not kill the model render
-    try {
-        const bgUrl = await findBackgroundUrl(MODEL);
-        if (bgUrl) {
-            const bg = new PIXI.Sprite(await loadTexture(bgUrl));
-            fitBackground(bg);
-            app.stage.addChildAt(bg, 0);
-            window.addEventListener('resize', () => fitBackground(bg));
-            window.__mizu.bg = bgUrl;
-        }
-    } catch (err) {
-        console.error('[mizu] bg load failed:', err);
+    if (bgTexture) {
+        bgSprite = new PIXI.Sprite(bgTexture);
+        fitBackground(bgSprite);
+        app.stage.addChildAt(bgSprite, 0);
     }
-
-    // hotspots from the skins.json loaded alongside the model
+    app.stage.addChild(badgeLayer);
     try {
         buildHotspots(skins);
-        if (hotspots.length && loadSettings().tips) setTips(true);
     } catch (err) {
         console.error('[mizu] hotspot setup failed:', err);
     }
+    // tips are per prefab: the new model starts with its own saved state
+    setTips(hotspots.length > 0 && loadSettings().tips, false);
 
+    window.__mizu.model = model;
+    window.__mizu.bg = bgUrl && bgTexture ? bgUrl : null;
+    window.__mizu.paraRange = skins?.paraRange ?? null;
+    picker?.setCurrent(prefab);
     console.log('[mizu] model loaded:', {
+        prefab,
         width: model.internalModel.width,
         height: model.internalModel.height,
         motionGroups: Object.keys(model.internalModel.settings.motions || {}),
     });
 }
 
+function switchModel(prefab) {
+    if (prefab === MODEL) return;
+    loadModel(prefab).catch(err => {
+        console.error('[mizu] model switch failed:', prefab, err);
+        window.__mizu.error = err && err.message ? err.message : String(err);
+    });
+}
+
+// one ticker and one resize listener for the page lifetime; both are no-ops
+// while no model is attached
+function tick() {
+    if (!model) return;
+    const mm = model.internalModel.motionManager;
+    // 0.4.0 leaves a stale idle reservation behind when an idle motion is
+    // requested but never started (state.complete() clears currentGroup but
+    // nothing clears reservedIdleGroup), so shouldRequestIdleMotion() never
+    // fires again and auto-idle silently stops. Drop the stale reservation
+    // whenever no motion is current; state.start() re-sets it legitimately.
+    if (mm.state.currentGroup === undefined && mm.state.reservedIdleGroup !== undefined) {
+        mm.state.setReservedIdle(undefined, undefined);
+    }
+    // badges + hit-test bboxes track the animated vertices every tick
+    if (hotspots.length) updateHotspots();
+}
+
+function onResize() {
+    if (model) renderPlacement();
+    if (bgSprite) fitBackground(bgSprite);
+}
+
+async function main() {
+    // probe for render checks (handover A4): page state without pixels
+    window.__mizu = {
+        app, model: null, bg: null, hotspots, paraRange: null,
+        get tipsOn() { return tipsOn; },
+        get view() { return { ...view }; },
+        toggleTips: () => tipsToggle.click(),
+        resetView: () => resetView(),
+    };
+    [catalog, placementIndex] = await Promise.all([loadCatalog(), loadPlacementIndex()]);
+    setupPointerEvents();
+    app.ticker.add(tick);
+    window.addEventListener('resize', onResize);
+    if (window.MizuPicker && Object.keys(catalog).length) {
+        picker = window.MizuPicker.init({ catalog, current: MODEL, onSelect: switchModel });
+    }
+    await loadModel(MODEL);
+}
+
 main().catch(err => {
     // probe hook for render checks (handover A4): failures visible without console
-    window.__mizu = { app, error: err && err.message ? err.message : String(err) };
+    window.__mizu = { ...(window.__mizu || {}), app, error: err && err.message ? err.message : String(err) };
     console.error('[mizu] model load failed:', err);
 });

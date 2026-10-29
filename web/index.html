@@ -33,6 +33,65 @@
     #view-reset .lens { fill: rgba(18, 28, 42, .5); stroke: rgba(255, 255, 255, .85); stroke-width: 1.6; }
     #view-reset .arrow { fill: none; stroke: rgba(255, 255, 255, .9); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 
+    /* model picker (R1c.2): glass panel top-right, same language as the tips */
+    .picker-open {
+      position: fixed; right: 14px; top: 14px; width: 40px; height: 40px;
+      padding: 0; border: 0; background: none; cursor: pointer; z-index: 10;
+      opacity: .4; transition: opacity .15s ease;
+    }
+    .picker-open:hover, .picker-open:focus-visible, .picker-open[aria-expanded="true"] { opacity: 1; }
+    .picker-open .lens { fill: rgba(18, 28, 42, .5); stroke: rgba(255, 255, 255, .85); stroke-width: 1.6; }
+    .picker-open .bar { stroke: rgba(255, 255, 255, .9); stroke-width: 1.8; stroke-linecap: round; }
+    .picker-panel {
+      position: fixed; right: 14px; top: 62px; z-index: 12; width: 340px;
+      max-height: calc(100vh - 92px); display: flex; flex-direction: column;
+      background: rgba(255, 255, 255, .6); backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, .6); border-radius: 14px;
+      box-shadow: 0 6px 24px rgba(30, 42, 60, .2);
+      color: #2e3d52; font: 13px/1.4 system-ui, sans-serif;
+    }
+    .picker-panel[hidden] { display: none; }
+    .picker-head { display: flex; gap: 6px; padding: 10px 10px 6px; }
+    .picker-search {
+      flex: 1; min-width: 0; padding: 6px 10px; border-radius: 9px; font: inherit;
+      border: 1px solid rgba(70, 88, 110, .25); background: rgba(255, 255, 255, .7); color: inherit;
+    }
+    .picker-chip {
+      padding: 6px 10px; border-radius: 9px; font: inherit; cursor: pointer;
+      border: 1px solid rgba(70, 88, 110, .25); background: rgba(255, 255, 255, .5); color: inherit;
+    }
+    .picker-chip.on { background: rgba(40, 62, 92, .8); color: #fff; border-color: transparent; }
+    .picker-count { padding: 0 12px 6px; font-size: 11px; color: #5d6d82; }
+    .picker-list { overflow-y: auto; padding: 0 6px 8px; }
+    .picker-ship {
+      display: flex; align-items: baseline; gap: 6px; width: 100%; padding: 6px 8px;
+      border: 0; border-radius: 8px; background: none; cursor: pointer; text-align: left;
+      font: inherit; color: inherit;
+    }
+    .picker-ship:hover { background: rgba(255, 255, 255, .55); }
+    .picker-ship::before { content: '▸'; color: #5d6d82; width: 10px; }
+    .picker-ship.open::before { content: '▾'; }
+    .picker-ship-en { font-weight: 600; }
+    .picker-ship-sub { color: #6b7a8e; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    .picker-ship-n { margin-left: auto; color: #6b7a8e; font-size: 11px; }
+    .picker-skin {
+      display: flex; align-items: center; gap: 6px; padding: 4px 8px 4px 24px; border-radius: 8px;
+    }
+    .picker-skin:hover { background: rgba(255, 255, 255, .45); }
+    .picker-skin.current { background: rgba(40, 62, 92, .12); }
+    .picker-skin-label {
+      flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start;
+      padding: 2px 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer;
+    }
+    .picker-skin-label:disabled { cursor: default; opacity: .55; }
+    .picker-skin-en { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+    .picker-skin-sub { color: #6b7a8e; font-size: 11px; }
+    .picker-dl {
+      padding: 3px 9px; border-radius: 7px; font: inherit; font-size: 12px; cursor: pointer;
+      border: 1px solid rgba(70, 88, 110, .35); background: rgba(255, 255, 255, .7); color: inherit;
+    }
+    .picker-status { font-size: 11px; color: #5d6d82; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
     /* hover label — same glass speech-bubble language as the pinned badges */
     #tips-label {
       position: fixed; z-index: 11; pointer-events: none;
@@ -65,6 +124,7 @@
   <script src="vendor/pixi.min.js"></script>
   <script src="vendor/live2dcubismcore.min.js"></script>
   <script src="vendor/pixi-live2d-display.min.js"></script>
+  <script src="picker.js"></script>
   <script src="main.js"></script>
 </body>
 </html>
