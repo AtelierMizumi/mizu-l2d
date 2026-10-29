@@ -1,6 +1,8 @@
 // R0.3 scaffold (PLAN §8): transparent PIXI stage on the page.
-// R1a.1: render aersasi_3 with idle motion, fit to ~90% viewport height,
-// anchored bottom-center.
+// R1a.1: render a model with idle motion, fit to ~90% viewport height,
+// anchored bottom-center. Model selectable via ?model=<prefab> (R1c.2 will
+// build the real carousel from l2d_mapping.json).
+const MODEL = new URLSearchParams(location.search).get('model') || 'aersasi_3';
 const app = new PIXI.Application({
     backgroundAlpha: 0,
     resizeTo: window,
@@ -16,7 +18,11 @@ function fit(model) {
 
 async function main() {
     const model = await PIXI.live2d.Live2DModel.from(
-        'assets/aersasi_3/aersasi_3.model3.json', { autoInteract: false });
+        `assets/${MODEL}/${MODEL}.model3.json`, { autoInteract: false });
+    // 0.4.0 hardcodes motionManager.groups.idle = 'Idle', but AL models name
+    // the group 'idle' — auto-idle silently no-ops without this remap.
+    model.internalModel.motionManager.groups.idle = Object.keys(
+        model.internalModel.settings.motions).find(k => k.toLowerCase() === 'idle') ?? 'Idle';
     fit(model);
     app.stage.addChild(model);
     window.addEventListener('resize', () => fit(model));

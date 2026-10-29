@@ -1,8 +1,8 @@
 # STATUS — state ledger (update at the END of every work unit)
 
 Last updated: 2026-10-29
-Last agent: ZCode (R0.2 web vendor unit)
-Next unit: **R1a.1** (render aersasi_3 in the page, PLAN §8 R1). R0.3 committed.
+Last agent: ZCode (R1a.1 render + model import unit)
+Next unit: **R1a.2** (model scene background, PLAN §8 R1). R1a.1 committed.
 Handover for continuation: **docs/HANDOVER.md** (read it first; it lists owner-only steps).
 
 ## Done (verified)
@@ -29,6 +29,11 @@ Handover for continuation: **docs/HANDOVER.md** (read it first; it lists owner-o
   Served via `python3 -m http.server 8787 -d web`; curl checks returned 200
   for index.html, the aersasi_3 model3.json through the symlink, and both
   vendor bundles.
+- R1a.1 done (verified): `web/main.js` renders the model with idle motion,
+  fit to 90% viewport height, anchored bottom-center; model selectable via
+  `?model=<prefab>` (default aersasi_3). Real-browser checks: aersasi_3
+  (82 groups) and lisailiu_3 load with no console errors, render correctly
+  (screenshot), and idle motion starts and animates when the page ticks.
 
 ## In progress
 - S0-perf (SPEC §12): scripts in `spikes/s0-perf/` (committed in `cd21547`). Side A
@@ -36,7 +41,7 @@ Handover for continuation: **docs/HANDOVER.md** (read it first; it lists owner-o
   a live Wayland session. Both must be run by the owner on the desktop.
 
 ## Next
-- R0.2 → R0.3 → R1a.1 (PLAN §8). S0-perf runs before R2 (SPEC §12).
+- R1a.2 → R1a.3 → R1a.4 (PLAN §8). S0-perf runs before R2 (SPEC §12).
 
 ## Blockers / open questions
 - `skins.json` scale/offset unit semantics unknown (resolved empirically in
@@ -100,3 +105,18 @@ Handover for continuation: **docs/HANDOVER.md** (read it first; it lists owner-o
   - This sandbox CAN reach cdn.jsdelivr.net — HANDOVER §1's "cannot" list was
     written for the previous agent's sandbox. Re-test network assumptions per
     session instead of trusting the handover.
+- 2026-10-29 R1a.1 + model import unit:
+  - lisailiu_3 (Richelieu "Evergreen Prophecy") fetched with fetch-model.sh:
+    7 MB, 1 texture, 15 motion groups (idle, main_1..3, touch_head/body/
+    special, wedding, plus secretary UI groups), all 18 model3.json
+    references present. skins.json has offset [0, 40] and paraRange but NO
+    drags — this skin has no hotspot config.
+  - pixi-live2d-display 0.4.0 hardcodes motionManager.groups.idle = 'Idle'
+    (capital I) while AL model3.json defines the group as 'idle' —
+    startRandomMotion looked up definitions['Idle'] and silently no-oped,
+    so auto-idle never started on any model. Fixed in main.js by remapping
+    groups.idle to the group name the model actually defines.
+  - Probe lesson: an occluded automation tab throttles rAF to ~2 FPS (or 0),
+    so motion start and param animation read as frozen. Drive
+    `internalModel.update(dt, now)` manually when probing time-based state;
+    do not conclude from wall-clock sampling that nothing animates.
