@@ -306,19 +306,19 @@ S = <1 session, M = ~1 session, L = plan for 2+ sessions with commit points.
    *Accept:* `git log` shows the baseline; `git status` lists only `.claude/`
    and the root placeholders; `ninja -C build` green. Requires the owner's OK
    to commit (see STATUS.md).
-2. `R0.2` Mirror web dependencies + data layer into the repo tree:
-   - `web/vendor/pixi.min.js` ← jsDelivr pixi.js@6.5.10 browser build
+2. `R0.2` Vendor the MIT web libraries. Keep Azur Lane data and Cubism Core out of git
+   (SPEC §12, D-L2 and its amendment):
+   - `web/vendor/pixi.min.js` ← jsDelivr pixi.js@6.5.10 browser build (MIT)
    - `web/vendor/pixi-live2d-display.min.js` ← jsDelivr
-     pixi-live2d-display@0.4.0 `dist/web/index.min.js`
-   - `web/vendor/live2dcubismcore.min.js` ← azurlane.nagami.moe root copy
-   - `web/data/l2d_mapping.json`, `web/data/index.json` ← data.nagami.moe
-   Record every source URL in `web/vendor/SOURCES.md`. gitignore nothing here
-   except the core? The core is proprietary: keep it under
-   `~/.local/share/mizu/vendor/` and reference by server path instead of
-   committing (decide at unit start; default = don't commit).
-   *Accept:* files exist; `SOURCES.md` lists URLs + license notes.
+     pixi-live2d-display@0.4.0 `dist/web/index.min.js` (MIT; re-check at vendoring)
+   - Record every URL, version and sha256 in `web/vendor/SOURCES.md`. Commit these.
+   - NOT in git: `live2dcubismcore.min.js` (Live2D proprietary) and the nagami data
+     (`l2d_mapping.json`, `index.json`, skins). Keep them under `~/.local/share/mizu/`
+     and reference them by path at runtime. Gitignore `web/data/` and `web/assets`.
+   *Accept:* the two MIT files exist; `SOURCES.md` lists URL, version, sha256; `git
+   check-ignore` reports the core, `web/data/` and `web/assets` as ignored.
 3. `R0.3` Static server + page scaffold: `web/` with `index.html`,
-   `main.js`, and `assets -> ~/.local/share/mizu/l2d` symlink; serve with
+   `main.js`, and `assets -> ~/.local/share/mizu/l2d` symlink (gitignored); serve with
    `python3 -m http.server 8787 -d web` (same-origin for fetch/CORS-free
    textures). *Accept:* `curl -s localhost:8787/index.html` 200;
    `curl -sI localhost:8787/assets/aersasi_3/aersasi_3.model3.json` 200.

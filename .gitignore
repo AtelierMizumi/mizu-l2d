@@ -5,3 +5,5 @@ third_party/nlohmann/
 compile_commands.json
 # Live2D proprietary core (mirrored by script, never committed)
 web/vendor/live2dcubismcore.min.js
+web/data/
+web/assets

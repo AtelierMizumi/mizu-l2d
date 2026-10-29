@@ -3,6 +3,7 @@
 Last updated: 2026-10-29
 Last agent: ZCode (session that wrote PLAN v2)
 Next unit: **R0.2** (see docs/PLAN.md §8). R0.1 committed as the baseline.
+Handover for continuation: **docs/HANDOVER.md** (read it first; it lists owner-only steps).
 
 ## Done (verified)
 - Spikes S1/S2/S4 PASS (design doc §2). Pointer input to background layer
@@ -69,3 +70,14 @@ Next unit: **R0.2** (see docs/PLAN.md §8). R0.1 committed as the baseline.
   Fixed in the working tree. The same script also refuses `..` or absolute paths from the
   remote model3.json. Owner must re-run `bash scripts/fetch-model.sh aersasi_3` to fetch
   the moc3. The sandbox blocks azlassets.nagami.moe, so the URL is unverified here.
+- 2026-10-29 goal set by owner (`/mattpocock-skills:tdd`): a selection UI with preview,
+  on-demand download of a chosen Live2D model (no mass download), and the model shown and
+  interactive on the desktop wallpaper.
+  - Success: 99 of 100 random loads succeed (retries counted). Interaction: the hotspot
+    fires the mapped motion, no motion gets stuck, no crash after 100 interactions, and
+    switching models leaks no GL resources.
+  - Placement: catalog and fetch live in this repo while it is local. Gate: move them to the
+    overlay before any push or public release (SPEC §12, D-L2 amendment).
+  - Host: wait for the S0-perf result before choosing WebKitGTK 6.0 or native.
+  - Seams S1–S6 are proposed (catalog, on-demand fetch, render, interaction, wallpaper host,
+    success-rate harness). Not yet confirmed by the owner; no tests written yet.

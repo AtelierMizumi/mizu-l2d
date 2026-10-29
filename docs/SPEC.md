@@ -227,6 +227,10 @@ Owner approved the recommendations below on 2026-10-29.
 1. **D-L1** Engine license: MIT. Put `LICENSE` in the repo before the first public release.
 2. **D-L2** Azur Lane content, its converters and fetch scripts stay in a private overlay,
    permanently. The public repo ships no content and no Cubism Core.
+   *Amended 2026-10-29 (owner):* the model catalog and on-demand download are built in this
+   repo while it stays local (no remote). **Gate:** before any push or public release, move
+   the catalog and fetch code into the overlay, or revert this amendment. Content stays
+   out of git in every case.
 3. **D-N1** Name stays `mizu-l2d`. README states the project is not affiliated with Manjuu
    or Yostar. No Azur Lane branding in the public name or logo.
 4. **D-S1** Run spikes S5 (KWin layer-shell) and S6 (Plasma native) before committing to any
