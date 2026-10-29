@@ -152,7 +152,10 @@
             render();
             let last = '';
             try {
-                const resp = await fetch(`api/download?prefab=${encodeURIComponent(prefab)}`);
+                const resp = await fetch(`api/download?prefab=${encodeURIComponent(prefab)}`, {
+                    method: 'POST',
+                    headers: { 'X-Mizu-Action': 'download' },
+                });
                 if (!resp.ok) throw new Error(resp.status === 404 || resp.status === 501
                     ? 'cần chạy scripts/serve.py' : `HTTP ${resp.status}`);
                 const reader = resp.body.getReader();
