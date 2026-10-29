@@ -75,7 +75,8 @@ function removeStored(key) {
 }
 const placementKey = () => `mizu.placement.${MODEL}`;
 const settingsKey = () => `mizu.settings.${MODEL}`;
-function loadSettings() { return { tips: false, ...(readStored(settingsKey()) ?? {}) }; }
+// defaults: tips off; web viewer plays voice and chatter (wallpaper mode mutes, R2)
+function loadSettings() { return { tips: false, mute: false, chatter: true, ...(readStored(settingsKey()) ?? {}) }; }
 function saveSettings(patch) { writeStored(settingsKey(), { ...loadSettings(), ...patch }); }
 
 function makeBadge(number) {
@@ -267,6 +268,7 @@ function setupPointerEvents() {
             if (now - h.lastFired < h.cooldown) return;
             h.lastFired = now;
             model.motion(h.action, undefined, 3);
+            dialogue?.say(window.MizuDialogue.keyForAction(h.action));
             return;
         }
         press = { start: p, last: p, dragging: false };
@@ -426,6 +428,7 @@ async function loadPlacementIndex() {
 let catalog = {};
 let placementIndex = null;
 let picker = null;
+let dialogue = null;
 let bgSprite = null;
 let loadToken = 0; // a newer loadModel() call makes older in-flight loads drop their result
 
@@ -471,10 +474,21 @@ function unloadCurrent() {
     }
 }
 
+// dialogue lines for one skin (scripts/build-words.py); no file means no bubbles
+async function loadWords(prefab) {
+    try {
+        const resp = await fetch(`data/words/${prefab}.json`);
+        return resp.ok ? await resp.json() : null;
+    } catch (err) {
+        console.error('[mizu] words load failed:', err);
+        return null;
+    }
+}
+
 async function loadModel(prefab) {
     const token = ++loadToken;
     const bgUrl = findBackgroundUrl(prefab);
-    const [loaded, skins, bgTexture] = await Promise.all([
+    const [loaded, skins, bgTexture, words] = await Promise.all([
         PIXI.live2d.Live2DModel.from(`assets/${prefab}/${prefab}.model3.json`, { autoInteract: false }),
         loadSkins(prefab),
         // scene background; a bg failure must not kill the model render
@@ -482,6 +496,7 @@ async function loadModel(prefab) {
             console.error('[mizu] bg load failed:', err);
             return null;
         }) : null,
+        loadWords(prefab),
     ]);
     if (token !== loadToken) {
         loaded.destroy({ children: true, texture: true, baseTexture: true });
@@ -517,6 +532,9 @@ async function loadModel(prefab) {
     window.__mizu.bg = bgUrl && bgTexture ? bgUrl : null;
     window.__mizu.paraRange = skins?.paraRange ?? null;
     picker?.setCurrent(prefab);
+    dialogue?.load(words);
+    // login line on arrival; force bypasses the cooldown, and text shows even if audio is blocked
+    dialogue?.say('login', { force: true });
     console.log('[mizu] model loaded:', {
         prefab,
         width: model.internalModel.width,
@@ -565,6 +583,10 @@ async function main() {
         resetView: () => resetView(),
     };
     [catalog, placementIndex] = await Promise.all([loadCatalog(), loadPlacementIndex()]);
+    if (window.MizuDialogue) {
+        dialogue = window.MizuDialogue.init({ settings: loadSettings(), onChange: saveSettings });
+        window.__mizu.dialogue = dialogue;
+    }
     setupPointerEvents();
     app.ticker.add(tick);
     window.addEventListener('resize', onResize);
