@@ -190,6 +190,9 @@
             return !query || shipMatched || skin.haystack.includes(query);
         }
 
+        let currentLang = 'vi';
+        function isVi() { return (currentLang || 'vi') === 'vi'; }
+
         function render() {
             const frag = document.createDocumentFragment();
             let shown = 0, skinsShown = 0;
@@ -215,14 +218,23 @@
                 for (const skin of skins) frag.append(skinRow(skin));
             }
             list.replaceChildren(frag);
-            count.textContent = `${shown} tàu · ${skinsShown} skin`
-                + (probing ? ' · đang kiểm tra…' : '');
+            count.textContent = isVi()
+                ? (`${shown} tàu · ${skinsShown} skin` + (probing ? ' · đang kiểm tra…' : ''))
+                : (`${shown} ships · ${skinsShown} skins` + (probing ? ' · checking…' : ''));
         }
 
         function skinRow(skin) {
             const isCurrent = skin.prefab === currentPrefab;
             const isDown = downloaded[skin.prefab] === true;
             const row = el('div', 'picker-skin' + (isCurrent ? ' current' : ''));
+
+            const thumb = el('img', 'picker-skin-thumb');
+            thumb.src = `shots/${skin.prefab}.png`;
+            thumb.alt = skin.names.EN || skin.prefab;
+            thumb.loading = 'lazy';
+            thumb.onerror = () => { thumb.style.display = 'none'; };
+            row.append(thumb);
+
             const label = el('button', 'picker-skin-label');
             label.type = 'button';
             label.append(el('span', 'picker-skin-en', skin.names.EN || skin.prefab));
@@ -240,15 +252,23 @@
             if (busy.has(skin.prefab)) {
                 row.append(el('span', 'picker-status', busy.get(skin.prefab)));
             } else if (!isDown) {
-                const dl = el('button', 'picker-dl', 'Tải');
+                const dl = el('button', 'picker-dl', isVi() ? 'Tải' : 'Download');
                 dl.type = 'button';
-                dl.title = 'Tải model này về máy';
+                dl.title = isVi() ? 'Tải model này về máy' : 'Download model to local storage';
                 dl.addEventListener('click', () => download(skin.prefab));
                 row.append(dl);
             } else if (isCurrent) {
                 row.append(el('span', 'picker-status', '●'));
             }
             return row;
+        }
+
+        function setLanguage(lang) {
+            currentLang = lang || 'vi';
+            openBtn.title = isVi() ? 'Đổi nhân vật Live2D' : 'Select Live2D Model';
+            search.placeholder = isVi() ? 'Tìm tàu / skin (EN, 中文, 日本語)' : 'Search ship / skin (EN, CN, JP)';
+            chip.textContent = isVi() ? 'Đã tải' : 'Downloaded';
+            render();
         }
 
         render();
@@ -259,6 +279,7 @@
                 render();
             },
             setOpen,
+            setLanguage,
         };
     }
 

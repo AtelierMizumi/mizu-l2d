@@ -7,162 +7,635 @@
     html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
     canvas { display: block; }
 
-    /* L2D interaction tips toggle — glassy magnifier like the game's button,
-       kept faint when idle so it never competes with the scene */
-    #tips-toggle {
-      position: fixed; right: 14px; bottom: 14px; width: 40px; height: 40px;
+    /* Floating control buttons (frosted glass) */
+    .glass-btn {
+      position: fixed; bottom: 14px; width: 40px; height: 40px;
       padding: 0; border: 0; background: none; cursor: pointer; z-index: 10;
-      opacity: .4; transition: opacity .15s ease;
+      opacity: .6; transition: opacity .18s ease, transform .18s ease;
     }
-    #tips-toggle:hover, #tips-toggle:focus-visible { opacity: 1; }
-    #tips-toggle .lens { fill: rgba(18, 28, 42, .5); stroke: rgba(255, 255, 255, .85); stroke-width: 1.6; }
+    .glass-btn:hover, .glass-btn:focus-visible { opacity: 1; transform: scale(1.06); }
+    .glass-btn .lens { fill: rgba(18, 28, 42, .6); stroke: rgba(255, 255, 255, .85); stroke-width: 1.6; }
+
+    /* Bottom-left: Model picker & Settings */
+    .picker-open {
+      position: fixed; left: 14px; bottom: 14px; width: 40px; height: 40px;
+      padding: 0; border: 0; background: none; cursor: pointer; z-index: 10;
+      opacity: .6; transition: opacity .18s ease, transform .18s ease;
+    }
+    .picker-open:hover, .picker-open:focus-visible, .picker-open[aria-expanded="true"] { opacity: 1; transform: scale(1.06); }
+    .picker-open .lens { fill: rgba(18, 28, 42, .6); stroke: rgba(255, 255, 255, .85); stroke-width: 1.6; }
+    .picker-open .bar { stroke: rgba(255, 255, 255, .9); stroke-width: 1.8; stroke-linecap: round; }
+
+    #settings-toggle {
+      position: fixed; left: 60px; bottom: 14px; width: 40px; height: 40px;
+      padding: 0; border: 0; background: none; cursor: pointer; z-index: 10;
+      opacity: .6; transition: opacity .18s ease, transform .18s ease;
+    }
+    #settings-toggle:hover, #settings-toggle:focus-visible, #settings-toggle.open { opacity: 1; transform: scale(1.06); }
+    #settings-toggle .lens { fill: rgba(18, 28, 42, .6); stroke: rgba(255, 255, 255, .85); stroke-width: 1.6; }
+    #settings-toggle.open .lens { fill: rgba(40, 62, 92, .88); stroke: #38bdf8; }
+
+    #prop-toggle {
+      position: fixed; left: 106px; bottom: 14px; width: 40px; height: 40px;
+      padding: 0; border: 0; background: none; cursor: pointer; z-index: 10;
+      opacity: .6; transition: opacity .18s ease, transform .18s ease;
+    }
+    #prop-toggle:hover, #prop-toggle:focus-visible, #prop-toggle.open { opacity: 1; transform: scale(1.06); }
+    #prop-toggle .lens { fill: rgba(18, 28, 42, .6); stroke: rgba(255, 255, 255, .85); stroke-width: 1.6; }
+    #prop-toggle.open .lens { fill: rgba(40, 62, 92, .88); stroke: #38bdf8; }
+
+    .picker-panel {
+      position: fixed; left: 14px; bottom: 62px; z-index: 12; width: 400px;
+      max-height: calc(100vh - 92px); display: flex; flex-direction: column;
+      background: rgba(20, 28, 40, .85); backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, .2); border-radius: 14px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, .45);
+      color: #e2e8f0; font: 13px/1.4 system-ui, sans-serif;
+    }
+    .picker-panel[hidden] { display: none; }
+    .picker-head { display: flex; gap: 8px; padding: 12px 12px 8px; }
+    .picker-search {
+      flex: 1; min-width: 0; padding: 7px 12px; border-radius: 9px; font: inherit;
+      border: 1px solid rgba(255, 255, 255, .2); background: rgba(255, 255, 255, .1); color: #fff;
+    }
+    .picker-search::placeholder { color: rgba(255, 255, 255, .5); }
+    .picker-chip {
+      padding: 7px 12px; border-radius: 9px; font: inherit; cursor: pointer;
+      border: 1px solid rgba(255, 255, 255, .2); background: rgba(255, 255, 255, .1); color: #cbd5e1;
+    }
+    .picker-chip.on { background: rgba(45, 120, 180, .75); color: #fff; border-color: rgba(255, 255, 255, .4); }
+    .picker-count { padding: 0 14px 8px; font-size: 11px; color: #94a3b8; }
+    .picker-list { overflow-y: auto; padding: 0 8px 10px; display: flex; flex-direction: column; gap: 4px; }
+    
+    .picker-ship {
+      display: flex; align-items: baseline; gap: 6px; width: 100%; padding: 7px 10px;
+      border: 0; border-radius: 8px; background: rgba(255, 255, 255, .05); cursor: pointer; text-align: left;
+      font: inherit; color: inherit;
+    }
+    .picker-ship:hover { background: rgba(255, 255, 255, .12); }
+    .picker-ship::before { content: '▸'; color: #94a3b8; width: 10px; }
+    .picker-ship.open::before { content: '▾'; }
+    .picker-ship-en { font-weight: 600; color: #fff; }
+    .picker-ship-sub { color: #94a3b8; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    .picker-ship-n { margin-left: auto; color: #94a3b8; font-size: 11px; }
+    
+    .picker-skin {
+      display: flex; align-items: center; gap: 10px; padding: 6px 10px 6px 14px; border-radius: 8px;
+      background: rgba(255, 255, 255, .03); border: 1px solid transparent;
+    }
+    .picker-skin:hover { background: rgba(255, 255, 255, .08); }
+    .picker-skin.current { background: rgba(56, 189, 248, .15); border-color: rgba(56, 189, 248, .4); }
+    .picker-skin-thumb {
+      width: 64px; height: 38px; border-radius: 6px; object-fit: cover;
+      background: rgba(0, 0, 0, .4); border: 1px solid rgba(255, 255, 255, .15); flex-shrink: 0;
+    }
+    .picker-skin-label {
+      flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start;
+      padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer;
+    }
+    .picker-skin-label:disabled { cursor: default; opacity: .55; }
+    .picker-skin-en { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; font-weight: 500; }
+    .picker-skin-sub { color: #94a3b8; font-size: 11px; }
+    .picker-dl {
+      padding: 4px 10px; border-radius: 6px; font: inherit; font-size: 11px; font-weight: 600; cursor: pointer;
+      border: 1px solid rgba(255, 255, 255, .25); background: rgba(255, 255, 255, .15); color: #fff;
+    }
+    .picker-dl:hover { background: rgba(255, 255, 255, .25); }
+    .picker-status { font-size: 11px; color: #38bdf8; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* Settings modal */
+    #settings-modal {
+      position: fixed; left: 14px; bottom: 62px; z-index: 14; width: 360px;
+      max-height: calc(100vh - 92px); display: flex; flex-direction: column;
+      background: rgba(20, 28, 40, .88); backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, .2); border-radius: 14px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, .45);
+      color: #e2e8f0; font: 13px/1.4 system-ui, sans-serif;
+      overflow-y: auto;
+    }
+    #settings-modal[hidden] { display: none; }
+    .settings-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 14px 8px; border-bottom: 1px solid rgba(255, 255, 255, .1);
+    }
+    .settings-title { font-weight: 700; font-size: 14px; color: #fff; }
+    .settings-close {
+      background: none; border: 0; color: #94a3b8; font-size: 18px; cursor: pointer;
+      line-height: 1; padding: 2px 6px; border-radius: 6px;
+    }
+    .settings-close:hover { color: #fff; background: rgba(255, 255, 255, .1); }
+    .settings-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 14px; }
+    
+    .lang-switcher {
+      display: flex; background: rgba(0, 0, 0, .3); border-radius: 9px;
+      padding: 3px; border: 1px solid rgba(255, 255, 255, .15);
+    }
+    .lang-btn {
+      flex: 1; padding: 6px 10px; border: 0; background: none; color: #94a3b8;
+      font: 600 12px system-ui, sans-serif; border-radius: 7px; cursor: pointer;
+      transition: background .15s ease, color .15s ease; text-align: center;
+    }
+    .lang-btn.active {
+      background: rgba(56, 189, 248, .25); color: #38bdf8; font-weight: 700;
+      border: 1px solid rgba(56, 189, 248, .4);
+    }
+
+    .setting-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .setting-info { flex: 1; min-width: 0; }
+    .setting-label { font-weight: 600; color: #f1f5f9; font-size: 13px; }
+    .setting-sub { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+
+    /* Switch */
+    .switch { position: relative; display: inline-block; width: 38px; height: 22px; flex-shrink: 0; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(255, 255, 255, .2); transition: .2s ease; border-radius: 22px;
+    }
+    .slider:before {
+      position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px;
+      background-color: white; transition: .2s ease; border-radius: 50%;
+    }
+    input:checked + .slider { background-color: #38bdf8; }
+    input:checked + .slider:before { transform: translateX(16px); }
+
+    /* Right dock buttons */
+    #tips-toggle { right: 14px; }
     #tips-toggle .lens-text { fill: #fff; font: 700 9px system-ui, sans-serif; text-anchor: middle; }
     #tips-toggle .handle { stroke: rgba(255, 255, 255, .85); stroke-width: 2.6; stroke-linecap: round; }
     #tips-toggle.on { opacity: 1; }
-    #tips-toggle.on .lens { fill: rgba(40, 62, 92, .78); stroke: #fff; }
+    #tips-toggle.on .lens { fill: rgba(40, 62, 92, .88); stroke: #5eead4; }
 
-    /* placement reset (R1a.5): sits left of the tips toggle, shown only while
-       the pointer is over the page so the scene stays clean */
-    #view-reset {
-      position: fixed; right: 60px; bottom: 14px; width: 40px; height: 40px;
-      padding: 0; border: 0; background: none; cursor: pointer; z-index: 10;
-      opacity: 0; transition: opacity .15s ease;
-    }
-    body:hover #view-reset { opacity: .4; }
-    #view-reset:hover, #view-reset:focus-visible { opacity: 1; }
-    #view-reset .lens { fill: rgba(18, 28, 42, .5); stroke: rgba(255, 255, 255, .85); stroke-width: 1.6; }
+    #lock-toggle { right: 60px; }
+    #lock-toggle .shackle { fill: none; stroke: rgba(255, 255, 255, .9); stroke-width: 2; stroke-linecap: round; }
+    #lock-toggle .body { fill: rgba(255, 255, 255, .9); }
+    #lock-toggle.locked { opacity: .9; }
+    #lock-toggle.locked .lens { fill: rgba(40, 62, 92, .85); stroke: #67e8f9; }
+
+    /* Gaze toggle button */
+    #gaze-toggle { right: 106px; }
+    #gaze-toggle .slash { display: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; }
+    #gaze-toggle.off .slash { display: inline; }
+    #gaze-toggle.off { opacity: .7; }
+    #gaze-toggle.active { opacity: 1; }
+    #gaze-toggle.active .lens { fill: rgba(40, 62, 92, .88); stroke: #38bdf8; }
+
+    #view-reset { right: 152px; }
     #view-reset .arrow { fill: none; stroke: rgba(255, 255, 255, .9); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 
-    /* model picker (R1c.2): glass panel top-right, same language as the tips */
-    .picker-open {
-      position: fixed; right: 14px; top: 14px; width: 40px; height: 40px;
-      padding: 0; border: 0; background: none; cursor: pointer; z-index: 10;
-      opacity: .4; transition: opacity .15s ease;
-    }
-    .picker-open:hover, .picker-open:focus-visible, .picker-open[aria-expanded="true"] { opacity: 1; }
-    .picker-open .lens { fill: rgba(18, 28, 42, .5); stroke: rgba(255, 255, 255, .85); stroke-width: 1.6; }
-    .picker-open .bar { stroke: rgba(255, 255, 255, .9); stroke-width: 1.8; stroke-linecap: round; }
-    .picker-panel {
-      position: fixed; right: 14px; top: 62px; z-index: 12; width: 340px;
-      max-height: calc(100vh - 92px); display: flex; flex-direction: column;
-      background: rgba(255, 255, 255, .6); backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, .6); border-radius: 14px;
-      box-shadow: 0 6px 24px rgba(30, 42, 60, .2);
-      color: #2e3d52; font: 13px/1.4 system-ui, sans-serif;
-    }
-    .picker-panel[hidden] { display: none; }
-    .picker-head { display: flex; gap: 6px; padding: 10px 10px 6px; }
-    .picker-search {
-      flex: 1; min-width: 0; padding: 6px 10px; border-radius: 9px; font: inherit;
-      border: 1px solid rgba(70, 88, 110, .25); background: rgba(255, 255, 255, .7); color: inherit;
-    }
-    .picker-chip {
-      padding: 6px 10px; border-radius: 9px; font: inherit; cursor: pointer;
-      border: 1px solid rgba(70, 88, 110, .25); background: rgba(255, 255, 255, .5); color: inherit;
-    }
-    .picker-chip.on { background: rgba(40, 62, 92, .8); color: #fff; border-color: transparent; }
-    .picker-count { padding: 0 12px 6px; font-size: 11px; color: #5d6d82; }
-    .picker-list { overflow-y: auto; padding: 0 6px 8px; }
-    .picker-ship {
-      display: flex; align-items: baseline; gap: 6px; width: 100%; padding: 6px 8px;
-      border: 0; border-radius: 8px; background: none; cursor: pointer; text-align: left;
-      font: inherit; color: inherit;
-    }
-    .picker-ship:hover { background: rgba(255, 255, 255, .55); }
-    .picker-ship::before { content: '▸'; color: #5d6d82; width: 10px; }
-    .picker-ship.open::before { content: '▾'; }
-    .picker-ship-en { font-weight: 600; }
-    .picker-ship-sub { color: #6b7a8e; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-    .picker-ship-n { margin-left: auto; color: #6b7a8e; font-size: 11px; }
-    .picker-skin {
-      display: flex; align-items: center; gap: 6px; padding: 4px 8px 4px 24px; border-radius: 8px;
-    }
-    .picker-skin:hover { background: rgba(255, 255, 255, .45); }
-    .picker-skin.current { background: rgba(40, 62, 92, .12); }
-    .picker-skin-label {
-      flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start;
-      padding: 2px 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer;
-    }
-    .picker-skin-label:disabled { cursor: default; opacity: .55; }
-    .picker-skin-en { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
-    .picker-skin-sub { color: #6b7a8e; font-size: 11px; }
-    .picker-dl {
-      padding: 3px 9px; border-radius: 7px; font: inherit; font-size: 12px; cursor: pointer;
-      border: 1px solid rgba(70, 88, 110, .35); background: rgba(255, 255, 255, .7); color: inherit;
-    }
-    .picker-status { font-size: 11px; color: #5d6d82; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-    /* dialogue (R1d): bottom-centre bubble in the game's dark glass style */
-    #dialogue-bubble {
-      position: fixed; left: 50%; bottom: 28px; z-index: 9; pointer-events: none;
-      max-width: min(70vw, 720px); padding: 10px 18px; box-sizing: border-box;
-      transform: translate(-50%, 8px); opacity: 0; transition: opacity .25s ease, transform .25s ease;
-      background: rgba(18, 28, 42, .55); backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, .18); border-radius: 14px;
-      box-shadow: 0 6px 20px rgba(0, 0, 0, .25);
-    }
-    #dialogue-bubble.show { opacity: 1; transform: translate(-50%, 0); }
-    .dialogue-text { color: #fff; font: 700 15px/1.45 system-ui, sans-serif; text-align: center; text-shadow: 0 1px 2px rgba(0, 0, 0, .4); }
-
-    /* voice toggles, hover-only like the reset button; a slash marks "off" */
-    #voice-mute, #voice-chatter {
-      position: fixed; bottom: 14px; width: 40px; height: 40px; padding: 0; border: 0;
-      background: none; cursor: pointer; z-index: 10; opacity: 0; transition: opacity .15s ease;
-    }
-    #voice-mute { right: 106px; }
-    #voice-chatter { right: 152px; }
-    body:hover #voice-mute, body:hover #voice-chatter { opacity: .4; }
-    #voice-mute:hover, #voice-chatter:hover, #voice-mute:focus-visible, #voice-chatter:focus-visible { opacity: 1; }
-    #voice-mute .lens, #voice-chatter .lens { fill: rgba(18, 28, 42, .5); stroke: rgba(255, 255, 255, .85); stroke-width: 1.6; }
+    #voice-mute { right: 198px; }
+    #voice-chatter { right: 244px; }
     #voice-mute .glyph, #voice-chatter .glyph { fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
     #voice-chatter .glyph { fill: rgba(255, 255, 255, .9); stroke: none; }
     #voice-mute .slash, #voice-chatter .slash { display: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; }
     #voice-mute.off .slash, #voice-chatter.off .slash { display: inline; }
     #voice-mute.off, #voice-chatter.off { opacity: .75; }
 
-    /* hover label — same glass speech-bubble language as the pinned badges */
+    #tooltip-toggle { right: 290px; }
+    #tooltip-toggle.active { opacity: 1; }
+    #tooltip-toggle.active .lens { fill: rgba(40, 62, 92, .88); stroke: #34d399; }
+
+    #state-step { right: 336px; }
+    #state-reset { right: 382px; }
+    #state-step.active, #state-reset.active { opacity: 1; }
+    #state-step.active .lens { fill: rgba(40, 62, 92, .88); stroke: #38bdf8; }
+    #state-reset.active .lens { fill: rgba(40, 62, 92, .88); stroke: #a78bfa; }
+
+    /* dialogue */
+    #dialogue-bubble {
+      position: fixed; left: 50%; bottom: 28px; z-index: 9; pointer-events: none;
+      max-width: min(70vw, 720px); padding: 10px 18px; box-sizing: border-box;
+      transform: translate(-50%, 8px); opacity: 0; transition: opacity .25s ease, transform .25s ease;
+      background: rgba(18, 28, 42, .65); backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, .2); border-radius: 14px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, .3);
+    }
+    #dialogue-bubble.show { opacity: 1; transform: translate(-50%, 0); }
+    .dialogue-text { color: #fff; font: 700 15px/1.45 system-ui, sans-serif; text-align: center; text-shadow: 0 1px 2px rgba(0, 0, 0, .4); }
+
+    /* hover label */
     #tips-label {
       position: fixed; z-index: 11; pointer-events: none;
       transform: translate(12px, 14px);
-      background: rgba(255, 255, 255, .5);
+      background: rgba(20, 28, 40, .8);
       backdrop-filter: blur(8px);
-      border: 1px solid rgba(255, 255, 255, .55);
-      color: #46586e;
-      font: 12px/1.4 system-ui, sans-serif; padding: 3px 10px; border-radius: 10px;
-      box-shadow: 0 2px 10px rgba(30, 42, 60, .18);
+      border: 1px solid rgba(255, 255, 255, .3);
+      color: #f1f5f9;
+      font: 12px/1.4 system-ui, sans-serif; padding: 4px 10px; border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, .3);
     }
-    /* wallpaper mode (?wall=1, R2): controls stay invisible until mouse hovers over desktop */
-    body.wall #tips-toggle, body.wall #view-reset, body.wall #voice-mute,
-    body.wall #voice-chatter, body.wall .picker-open { opacity: 0; transition: opacity .25s ease; }
-    body.wall:hover #tips-toggle, body.wall:hover #view-reset,
-    body.wall:hover #voice-mute, body.wall:hover #voice-chatter,
-    body.wall:hover .picker-open { opacity: .45; }
-    body.wall #tips-toggle:hover, body.wall #view-reset:hover,
-    body.wall #voice-mute:hover, body.wall #voice-chatter:hover,
-    body.wall .picker-open:hover, body.wall .picker-open[aria-expanded="true"] { opacity: 1; }
+
+    body.wall .glass-btn, body.wall .picker-open {
+      opacity: .55;
+    }
+    body.wall .glass-btn:hover, body.wall .picker-open:hover,
+    body.wall .picker-open[aria-expanded="true"], body.wall #tips-toggle.on,
+    body.wall #lock-toggle.locked, body.wall #settings-toggle.open, body.wall #prop-toggle.open {
+      opacity: 1;
+    }
+
+    /* Environment Prop Menu */
+    #prop-menu {
+      position: fixed; left: 14px; bottom: 62px; z-index: 15; width: 380px;
+      max-height: calc(100vh - 92px); display: flex; flex-direction: column;
+      background: rgba(16, 24, 38, .92); backdrop-filter: blur(20px);
+      border: 1px solid rgba(56, 189, 248, .35); border-radius: 16px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, .55);
+      color: #e2e8f0; font: 13px/1.4 system-ui, sans-serif;
+      overflow-y: auto;
+    }
+    #prop-menu[hidden] { display: none; }
+    .prop-menu-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 14px 10px; border-bottom: 1px solid rgba(255, 255, 255, .1);
+    }
+    .prop-menu-title-wrap { display: flex; align-items: center; gap: 10px; }
+    .prop-menu-icon { font-size: 20px; line-height: 1; }
+    .prop-menu-titles { display: flex; flex-direction: column; }
+    .prop-menu-title { font-weight: 700; font-size: 14px; color: #fff; }
+    .prop-menu-subtitle { font-size: 11px; color: #38bdf8; margin-top: 1px; }
+
+    .prop-tabs {
+      display: flex; background: rgba(0, 0, 0, .3); border-radius: 10px;
+      padding: 3px; margin: 10px 14px 4px; border: 1px solid rgba(255, 255, 255, .12);
+      gap: 3px;
+    }
+    .prop-tab-btn {
+      flex: 1; padding: 6px 8px; border: 0; background: none; color: #94a3b8;
+      font: 600 12px system-ui, sans-serif; border-radius: 7px; cursor: pointer;
+      transition: background .15s ease, color .15s ease; text-align: center;
+      white-space: nowrap;
+    }
+    .prop-tab-btn.active {
+      background: rgba(56, 189, 248, .25); color: #38bdf8; font-weight: 700;
+      border: 1px solid rgba(56, 189, 248, .4);
+    }
+
+    .prop-menu-body { padding: 10px 14px 14px; display: flex; flex-direction: column; gap: 12px; }
+    .prop-tab-pane { display: none; flex-direction: column; gap: 10px; }
+    .prop-tab-pane.active { display: flex; }
+    .prop-section-desc { font-size: 11.5px; color: #94a3b8; line-height: 1.35; }
+
+    /* Expressions grid */
+    .expression-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;
+    }
+    .exp-btn {
+      display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+      background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .12);
+      border-radius: 10px; color: #f1f5f9; cursor: pointer;
+      font: 500 12px system-ui, sans-serif; transition: all .15s ease;
+      text-align: left;
+    }
+    .exp-btn:hover {
+      background: rgba(56, 189, 248, .15); border-color: rgba(56, 189, 248, .3); color: #38bdf8;
+    }
+    .exp-btn.active {
+      background: rgba(56, 189, 248, .28); border-color: #38bdf8; color: #fff; font-weight: 600;
+      box-shadow: 0 0 10px rgba(56, 189, 248, .25);
+    }
+    .exp-emoji { font-size: 16px; line-height: 1; flex-shrink: 0; }
+    .exp-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* Costume & Props list */
+    .costume-list { display: flex; flex-direction: column; gap: 8px; }
+    .costume-item-btn {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 9px 12px; background: rgba(255, 255, 255, .06);
+      border: 1px solid rgba(255, 255, 255, .12); border-radius: 10px;
+      color: #f1f5f9; cursor: pointer; transition: all .15s ease;
+      font: 500 12.5px system-ui, sans-serif; text-align: left;
+    }
+    .costume-item-btn:hover {
+      background: rgba(56, 189, 248, .15); border-color: rgba(56, 189, 248, .3); color: #38bdf8;
+    }
+    .costume-item-btn.active {
+      background: rgba(56, 189, 248, .25); border-color: #38bdf8; color: #fff;
+    }
+    .costume-left { display: flex; align-items: center; gap: 10px; }
+    .costume-icon { font-size: 16px; }
+    .costume-info { display: flex; flex-direction: column; }
+    .costume-title { font-weight: 600; color: #fff; font-size: 12.5px; }
+    .costume-sub { font-size: 11px; color: #94a3b8; }
+    .costume-tag {
+      font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 6px;
+      background: rgba(56, 189, 248, .2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, .3);
+    }
+
+    /* Quick settings list */
+    .quick-settings-list { display: flex; flex-direction: column; gap: 6px; }
+    .quick-action-btn {
+      display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+      background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .1);
+      border-radius: 10px; color: #f1f5f9; cursor: pointer; transition: all .15s ease;
+      text-align: left;
+    }
+    .quick-action-btn:hover {
+      background: rgba(255, 255, 255, .12); border-color: rgba(255, 255, 255, .25);
+    }
+    .qa-icon { font-size: 16px; }
+    .qa-info { flex: 1; display: flex; flex-direction: column; }
+    .qa-title { font-weight: 600; font-size: 12.5px; color: #fff; }
+    .qa-sub { font-size: 11px; color: #94a3b8; }
+    .qa-status {
+      font-size: 11px; font-weight: 700; color: #38bdf8; background: rgba(56, 189, 248, .15);
+      padding: 2px 7px; border-radius: 6px;
+    }
+    .qa-arrow { font-size: 16px; color: #94a3b8; }
+
   </style>
 </head>
 <body>
-  <button id="tips-toggle" type="button" aria-pressed="false" title="L2D interaction tips" hidden>
+  <!-- Settings toggle button (bottom-left) -->
+  <button id="settings-toggle" type="button" aria-expanded="false" title="Cài đặt Live2D / Settings">
+    <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
+      <circle class="lens" cx="20" cy="20" r="12.5"></circle>
+      <!-- Modern gear icon -->
+      <path d="M 20 14 A 6 6 0 1 0 20 26 A 6 6 0 1 0 20 14" fill="none" stroke="#fff" stroke-width="1.8"></path>
+      <circle cx="20" cy="20" r="2.5" fill="#fff"></circle>
+      <path d="M 20 11.5 V 13.5 M 20 26.5 V 28.5 M 11.5 20 H 13.5 M 26.5 20 H 28.5 M 14 14 L 15.5 15.5 M 24.5 24.5 L 26 26 M 14 26 L 15.5 24.5 M 24.5 15.5 L 26 14" stroke="#fff" stroke-width="1.8" stroke-linecap="round"></path>
+    </svg>
+  </button>
+
+  <!-- Expressions & Props toggle button (bottom-left) -->
+  <button id="prop-toggle" type="button" aria-expanded="false" title="Biểu cảm & Đạo cụ / Props & Expressions">
+    <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
+      <circle class="lens" cx="20" cy="20" r="12.5"></circle>
+      <text x="20" y="25" text-anchor="middle" font-size="13" fill="#fff">🎭</text>
+    </svg>
+  </button>
+
+  <!-- Settings modal (bottom-left) -->
+  <div id="settings-modal" hidden>
+    <div class="settings-head">
+      <span class="settings-title" id="st-header">Cài đặt Live2D</span>
+      <button class="settings-close" id="settings-close-btn" type="button" aria-label="Đóng">✕</button>
+    </div>
+    <div class="settings-body">
+      <!-- Language selection -->
+      <div class="setting-item">
+        <div class="setting-info">
+          <div class="setting-label" id="st-lang-lbl">Ngôn ngữ</div>
+          <div class="setting-sub" id="st-lang-sub">Chuyển đổi giao diện & chú thích</div>
+        </div>
+      </div>
+      <div class="lang-switcher">
+        <button class="lang-btn" id="lang-btn-vi" type="button">Tiếng Việt</button>
+        <button class="lang-btn" id="lang-btn-en" type="button">English</button>
+      </div>
+
+      <!-- Gaze follow toggle -->
+      <div class="setting-item">
+        <div class="setting-info">
+          <div class="setting-label" id="st-gaze-lbl">Nhìn theo con trỏ chuột</div>
+          <div class="setting-sub" id="st-gaze-sub">Nhân vật chuyển động mắt và đầu dõi theo chuột</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="set-gaze-check" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <!-- Placement lock toggle -->
+      <div class="setting-item">
+        <div class="setting-info">
+          <div class="setting-label" id="st-lock-lbl">Khoá vị trí nhân vật</div>
+          <div class="setting-sub" id="st-lock-sub">Khoá kéo thả để thao tác chạm tương tác chuẩn xác</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="set-lock-check" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <!-- Interaction tooltips -->
+      <div class="setting-item">
+        <div class="setting-info">
+          <div class="setting-label" id="st-tips-lbl">Khung chú thích tương tác</div>
+          <div class="setting-sub" id="st-tips-sub">Hiện chữ chú thích khi rê chuột vào điểm chạm</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="set-tooltips-check" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <!-- Badges hints -->
+      <div class="setting-item">
+        <div class="setting-info">
+          <div class="setting-label" id="st-badges-lbl">Gợi ý & Huy hiệu L2D</div>
+          <div class="setting-sub" id="st-badges-sub">Hiển thị các huy hiệu tròn tại các vùng tương tác</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="set-badges-check">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <!-- Voice mute -->
+      <div class="setting-item">
+        <div class="setting-info">
+          <div class="setting-label" id="st-voice-lbl">Giọng nói nhân vật</div>
+          <div class="setting-sub" id="st-voice-sub">Phát lời thoại lồng tiếng khi chạm tương tác</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="set-voice-check" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <!-- Idle chatter -->
+      <div class="setting-item">
+        <div class="setting-info">
+          <div class="setting-label" id="st-chatter-lbl">Lời thoại định kỳ</div>
+          <div class="setting-sub" id="st-chatter-sub">Tự động phát lời thoại khi nghỉ nhàn rỗi</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="set-chatter-check" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Environment Prop Interactive Menu (Casting Board / Studio Props) -->
+  <div id="prop-menu" hidden>
+    <div class="prop-menu-head">
+      <div class="prop-menu-title-wrap">
+        <span class="prop-menu-icon" id="pm-icon">📋</span>
+        <div class="prop-menu-titles">
+          <span class="prop-menu-title" id="pm-title">Bảng Manjuu Casting</span>
+          <span class="prop-menu-subtitle" id="pm-subtitle">Đạo cụ Studio · Cài đặt & Biểu cảm</span>
+        </div>
+      </div>
+      <button class="settings-close" id="prop-menu-close-btn" type="button" aria-label="Đóng">✕</button>
+    </div>
+    
+    <!-- Tab Navigation -->
+    <div class="prop-tabs">
+      <button class="prop-tab-btn active" data-tab="expressions" id="pm-tab-exp" type="button">Biểu cảm</button>
+      <button class="prop-tab-btn" data-tab="costumes" id="pm-tab-costumes" type="button">Trang phục & Poses</button>
+      <button class="prop-tab-btn" data-tab="settings" id="pm-tab-settings" type="button">Cài đặt nhanh</button>
+    </div>
+
+    <div class="prop-menu-body">
+      <!-- Tab 1: Expressions -->
+      <div class="prop-tab-pane active" id="pane-expressions">
+        <div class="prop-section-desc" id="pm-exp-desc">Chọn biểu cảm khuôn mặt cho nhân vật:</div>
+        <div class="expression-grid" id="expression-grid">
+          <!-- Dynamically populated expression presets -->
+        </div>
+      </div>
+
+      <!-- Tab 2: Costumes, Photos & Props -->
+      <div class="prop-tab-pane" id="pane-costumes">
+        <div class="prop-section-desc" id="pm-costumes-desc">Tùy chỉnh ảnh casting, đạo cụ và trang phục:</div>
+        <div class="costume-list" id="costume-list">
+          <!-- Dynamically populated items -->
+        </div>
+      </div>
+
+      <!-- Tab 3: Quick Settings -->
+      <div class="prop-tab-pane" id="pane-settings">
+        <div class="prop-section-desc" id="pm-settings-desc">Các thao tác nhanh cho hệ thống:</div>
+        <div class="quick-settings-list">
+          <button class="quick-action-btn" id="qa-open-settings" type="button">
+            <span class="qa-icon">⚙️</span>
+            <div class="qa-info">
+              <span class="qa-title" id="qa-settings-title">Cài đặt Live2D chi tiết</span>
+              <span class="qa-sub" id="qa-settings-sub">Mở bảng điều khiển hệ thống và cấu hình</span>
+            </div>
+            <span class="qa-arrow">›</span>
+          </button>
+          <button class="quick-action-btn" id="qa-toggle-lock" type="button">
+            <span class="qa-icon">🔒</span>
+            <div class="qa-info">
+              <span class="qa-title" id="qa-lock-title">Khóa / Mở khóa vị trí</span>
+              <span class="qa-sub" id="qa-lock-sub">Chuyển đổi thao tác kéo thả và chạm</span>
+            </div>
+            <span class="qa-status" id="qa-lock-status">Bật</span>
+          </button>
+          <button class="quick-action-btn" id="qa-toggle-gaze" type="button">
+            <span class="qa-icon">👀</span>
+            <div class="qa-info">
+              <span class="qa-title" id="qa-gaze-title">Nhìn theo chuột</span>
+              <span class="qa-sub" id="qa-gaze-sub">Nhân vật liếc mắt dõi theo con trỏ</span>
+            </div>
+            <span class="qa-status" id="qa-gaze-status">Bật</span>
+          </button>
+          <button class="quick-action-btn" id="qa-toggle-tips" type="button">
+            <span class="qa-icon">💡</span>
+            <div class="qa-info">
+              <span class="qa-title" id="qa-tips-title">Gợi ý tương tác</span>
+              <span class="qa-sub" id="qa-tips-sub">Hiển thị các huy hiệu và vùng chạm</span>
+            </div>
+            <span class="qa-status" id="qa-tips-status">Tắt</span>
+          </button>
+          <button class="quick-action-btn" id="qa-reset-view" type="button">
+            <span class="qa-icon">🎯</span>
+            <div class="qa-info">
+              <span class="qa-title" id="qa-reset-title">Căn giữa góc nhìn</span>
+              <span class="qa-sub" id="qa-reset-sub">Khôi phục vị trí và tỉ lệ mặc định</span>
+            </div>
+            <span class="qa-arrow">↺</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Floating Dock -->
+  <!-- Tips toggle button -->
+  <button id="tips-toggle" class="glass-btn" type="button" aria-pressed="false" title="Gợi ý tương tác L2D">
     <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
       <circle class="lens" cx="17.5" cy="17.5" r="12.5"></circle>
       <text class="lens-text" x="17.5" y="20.5">L2D</text>
       <line class="handle" x1="27" y1="27" x2="33.5" y2="33.5"></line>
     </svg>
   </button>
-  <button id="view-reset" type="button" title="Reset placement">
+
+  <!-- Lock placement toggle button -->
+  <button id="lock-toggle" class="glass-btn locked" type="button" aria-pressed="true" title="Khoá vị trí">
+    <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
+      <circle class="lens" cx="20" cy="20" r="12.5"></circle>
+      <path class="shackle" d="M 16 18 V 14.5 A 4 4 0 0 1 24 14.5 V 18"></path>
+      <rect class="body" x="13.5" y="18" width="13" height="9.5" rx="2"></rect>
+      <circle cx="20" cy="22.5" r="1.2" fill="#1e293b"></circle>
+    </svg>
+  </button>
+
+  <!-- Gaze follow toggle button -->
+  <button id="gaze-toggle" class="glass-btn active" type="button" aria-pressed="true" title="Nhìn theo con trỏ chuột">
+    <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
+      <circle class="lens" cx="20" cy="20" r="12.5"></circle>
+      <path class="eye-contour" d="M 13 20 C 16 15, 24 15, 27 20 C 24 25, 16 25, 13 20 Z" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+      <circle class="eye-pupil" cx="20" cy="20" r="2.6" fill="#fff"></circle>
+      <line class="slash" x1="12" y1="28" x2="28" y2="12"></line>
+    </svg>
+  </button>
+
+  <!-- Placement reset button -->
+  <button id="view-reset" class="glass-btn" type="button" title="Đặt lại vị trí & thu phóng">
     <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
       <circle class="lens" cx="20" cy="20" r="12.5"></circle>
       <path class="arrow" d="M 25.5 17.5 A 6 6 0 1 0 20.4 26"></path>
       <polyline class="arrow" points="22.5,14.2 25.8,17.6 29,15"></polyline>
     </svg>
   </button>
+
+  <!-- Voice & Chatter controls -->
+  <button id="voice-mute" class="glass-btn" type="button" title="Tắt/bật tiếng">
+    <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
+      <circle class="lens" cx="20" cy="20" r="12.5"></circle>
+      <path class="glyph" d="M 17 15 L 13 18 L 10 18 L 10 22 L 13 22 L 17 25 Z"></path>
+      <path class="glyph" d="M 21 16 A 5 5 0 0 1 21 24"></path>
+      <path class="glyph" d="M 24 13 A 9 9 0 0 1 24 27"></path>
+      <line class="slash" x1="12" y1="28" x2="28" y2="12"></line>
+    </svg>
+  </button>
+  <button id="voice-chatter" class="glass-btn" type="button" title="Lời thoại ngẫu nhiên">
+    <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
+      <circle class="lens" cx="20" cy="20" r="12.5"></circle>
+      <path class="glyph" d="M 12 15 C 12 12.8 14 11 16.5 11 L 23.5 11 C 26 11 28 12.8 28 15 L 28 21 C 28 23.2 26 25 23.5 25 L 18 25 L 14 28 L 14.5 25 L 16.5 25 C 14 25 12 23.2 12 21 Z"></path>
+      <line class="slash" x1="12" y1="28" x2="28" y2="12"></line>
+    </svg>
+  </button>
+
+  <!-- Tooltip toggle button -->
+  <button id="tooltip-toggle" class="glass-btn active" type="button" aria-pressed="true" title="Chú thích tương tác">
+    <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
+      <circle class="lens" cx="20" cy="20" r="12.5"></circle>
+      <path class="glyph" d="M 14 15 C 14 13.5 15.5 12 18 12 L 22 12 C 24.5 12 26 13.5 26 15 L 26 21 C 26 22.5 24.5 24 22 24 L 18 24 L 15 27 L 15.5 24 L 14 24 Z" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>
+  </button>
+
+  <!-- Sequence controls: next step and reset pose -->
+  <button id="state-step" class="glass-btn" type="button" title="Bước tương tác tiếp theo trong chuỗi">
+    <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
+      <circle class="lens" cx="20" cy="20" r="12.5"></circle>
+      <polygon points="15,14 23,20 15,26" fill="#fff"></polygon>
+      <line x1="25" y1="14" x2="25" y2="26" stroke="#fff" stroke-width="2.2" stroke-linecap="round"></line>
+    </svg>
+  </button>
+  <button id="state-reset" class="glass-btn" type="button" title="Trở về tư thế ban đầu">
+    <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
+      <circle class="lens" cx="20" cy="20" r="12.5"></circle>
+      <path class="arrow" d="M 24 16 A 5.5 5.5 0 1 0 25.2 21" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"></path>
+      <polyline points="21,13 24.5,16.5 28,13.5" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"></polyline>
+    </svg>
+  </button>
+
   <div id="tips-label" hidden></div>
+
+  <div id="dialogue-bubble">
+    <div class="dialogue-text"></div>
+  </div>
+
   <script src="vendor/pixi.min.js"></script>
   <script src="vendor/live2dcubismcore.min.js"></script>
   <script src="vendor/pixi-live2d-display.min.js"></script>
-  <script src="picker.js"></script>
   <script src="dialogue.js"></script>
+  <script src="picker.js"></script>
   <script src="main.js"></script>
 </body>
 </html>

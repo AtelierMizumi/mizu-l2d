@@ -29,8 +29,11 @@ def default_socket():
 
 
 def build_message(args):
-    if args.cmd in ("ping", "status", "page"):
+    if args.cmd in ("ping", "status", "page", "pause", "resume"):
         return {"cmd": args.cmd}
+    if args.cmd == "fps":
+        val = int(args.action) if args.action else (int(args.values[0]) if args.values else None)
+        return {"cmd": "fps", "fps": val}
     if args.cmd == "camera":
         if args.action == "zoom":
             return {"cmd": "camera", "action": "zoom", "value": float(args.values[0])}
@@ -42,6 +45,16 @@ def build_message(args):
         return {"cmd": "motion", "group": args.values[0]}
     if args.cmd == "model":
         return {"cmd": "model", "prefab": args.values[0]}
+    if args.cmd == "gaze":
+        on = None
+        if args.action in ("true", "1", "on"):
+            on = True
+        elif args.action in ("false", "0", "off"):
+            on = False
+        return {"cmd": "gaze", "on": on}
+    if args.cmd == "lang":
+        val = args.action or (args.values[0] if args.values else "vi")
+        return {"cmd": "lang", "lang": val}
     if args.cmd == "tips":
         on = None
         if args.action in ("true", "1", "on"):
@@ -49,13 +62,33 @@ def build_message(args):
         elif args.action in ("false", "0", "off"):
             on = False
         return {"cmd": "tips", "on": on}
+    if args.cmd == "lock":
+        locked = None
+        if args.action in ("true", "1", "on", "lock"):
+            locked = True
+        elif args.action in ("false", "0", "off", "unlock"):
+            locked = False
+        return {"cmd": "lock", "locked": locked}
+    if args.cmd == "tooltip":
+        on = None
+        if args.action in ("true", "1", "on"):
+            on = True
+        elif args.action in ("false", "0", "off"):
+            on = False
+        return {"cmd": "tooltip", "on": on}
+    if args.cmd == "state":
+        sub = args.action or "info"
+        val = args.values[0] if args.values else None
+        return {"cmd": "state", "action": sub, "value": val}
+    if args.cmd == "eval":
+        return {"cmd": "eval", "code": " ".join([args.action or ""] + args.values)}
     raise SystemExit(f"unknown command {args.cmd}")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--socket", default=str(default_socket()))
-    parser.add_argument("cmd", choices=["ping", "status", "page", "camera", "motion", "model", "tips"])
+    parser.add_argument("cmd", choices=["ping", "status", "page", "camera", "motion", "model", "tips", "lock", "state", "tooltip", "gaze", "lang", "pause", "resume", "fps", "eval"])
     parser.add_argument("action", nargs="?", help="camera: zoom|pos|reset")
     parser.add_argument("values", nargs="*")
     args = parser.parse_args()

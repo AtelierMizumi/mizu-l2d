@@ -195,6 +195,8 @@ class WallApp(Gtk.Application):
         view.set_background_color(Gdk.RGBA(red=0.0, green=0.0, blue=0.0, alpha=0.0))
         settings = view.get_settings()
         settings.set_enable_webgl(True)
+        settings.set_media_playback_allows_inline(True)
+        settings.set_media_playback_requires_user_gesture(False)
         window.set_child(view)
         view.load_uri(self.url)
         window.present()
@@ -289,6 +291,37 @@ class Control:
             val = msg.get("on")
             arg = f"{"true" if val else "false"}" if val is not None else ""
             return self.run_js(views, f"window.mizu.tips({arg})", respond)
+        if cmd == "lock":
+            val = msg.get("locked")
+            arg = f"{"true" if val else "false"}" if val is not None else ""
+            return self.run_js(views, f"window.mizu.lock({arg})", respond)
+        if cmd == "tooltip":
+            val = msg.get("on")
+            arg = f"{"true" if val else "false"}" if val is not None else ""
+            return self.run_js(views, f"window.mizu.tooltip({arg})", respond)
+        if cmd == "state":
+            sub = msg.get("action", "info")
+            val = msg.get("value")
+            arg = f"{json.dumps(val)}" if val is not None else f"{json.dumps(sub)}"
+            return self.run_js(views, f"window.mizu.state({arg})", respond)
+        if cmd == "pause":
+            return self.run_js(views, "window.mizu.pause()", respond)
+        if cmd == "resume":
+            return self.run_js(views, "window.mizu.resume()", respond)
+        if cmd == "fps":
+            target = msg.get("fps")
+            arg = f"{int(target)}" if target is not None else ""
+            return self.run_js(views, f"window.mizu.fps({arg})", respond)
+        if cmd == "gaze":
+            val = msg.get("on")
+            arg = f"{"true" if val else "false"}" if val is not None else ""
+            return self.run_js(views, f"window.mizu.gaze({arg})", respond)
+        if cmd == "lang":
+            val = str(msg.get("lang", ""))
+            return self.run_js(views, f"window.mizu.lang({json.dumps(val)})", respond)
+        if cmd == "eval":
+            code = msg.get("code", "")
+            return self.run_js(views, code, respond)
         return respond({"ok": False, "error": f"unknown command: {cmd}"})
 
     @staticmethod

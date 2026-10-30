@@ -7,3 +7,6 @@ compile_commands.json
 web/vendor/live2dcubismcore.min.js
 web/data/
 web/assets
+web/shots
+__pycache__/
+*.pyc
