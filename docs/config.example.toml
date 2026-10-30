@@ -10,3 +10,9 @@ model = "gaoxiong_7"
 
 # Connectors to draw on. Omit or comment out to draw on all connected outputs.
 # outputs = ["eDP-1"]
+
+# Mirror layout: the first output runs the only real WebKit view and every other
+# output repaints it (one WebKitWebProcess instead of one per screen, much less
+# memory). Only the first screen stays interactive. Default: false (a model on
+# every screen).
+# mirror = true

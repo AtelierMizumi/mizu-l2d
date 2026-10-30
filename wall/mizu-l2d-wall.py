@@ -6,6 +6,11 @@ anchored to all four edges, with a WebKitGTK 6.0 view that loads the web viewer
 (web/index.html?wall=1). Monitors are tracked for hotplug. A JSON-lines control
 socket in $XDG_RUNTIME_DIR runs the commands in SPEC §5.3 against every view.
 
+Mirror layout: with [wall] mirror = true only the first output runs a real
+WebKit view; every other output shows a GtkPicture that repaints it, so one
+WebKitWebProcess serves every screen (WebKitGTK has no shared process model).
+Only the first screen is interactive in this mode.
+
 usage: wall/mizu-l2d-wall.py [--url URL] [--no-serve]
   --url       page to load (default http://127.0.0.1:8787/?wall=1)
   --no-serve  do not start scripts/serve.py when nothing listens on the port
@@ -15,6 +20,7 @@ config: $XDG_CONFIG_HOME/mizu-l2d/config.toml (default ~/.config/mizu-l2d/config
   schema = 1
   [wall]
   outputs = ["eDP-1"]      # omit for every output
+  mirror = true            # omit for an independent model on every output
 """
 import argparse
 import atexit
@@ -75,17 +81,18 @@ MODEL_RE = re.compile(r"^[a-z0-9_]+$")
 
 def load_config(cli_outputs):
     """Load configuration from config.toml and CLI arguments.
-    Returns (outputs, model). Unknown config keys are reported, not dropped (SPEC §4.4)."""
+    Returns (outputs, model, mirror). Unknown config keys are reported, not dropped (SPEC §4.4)."""
     outputs = cli_outputs
     model = None
+    mirror = False
     if not CONFIG_PATH.exists():
-        return outputs, model
+        return outputs, model, mirror
     try:
         with open(CONFIG_PATH, "rb") as f:
             config = tomllib.load(f)
     except Exception as err:
         print(f"[wall] error reading config {CONFIG_PATH}: {err}", file=sys.stderr)
-        return outputs, model
+        return outputs, model, mirror
 
     for key in sorted(set(config) - KNOWN_CONFIG_KEYS):
         print(f"[wall] unknown config key ignored: {key}", file=sys.stderr)
@@ -101,7 +108,14 @@ def load_config(cli_outputs):
         else:
             print(f"[wall] invalid model name in config: {raw_model!r}", file=sys.stderr)
 
-    return outputs, model
+    raw_mirror = wall.get("mirror")
+    if raw_mirror is not None:
+        if isinstance(raw_mirror, bool):
+            mirror = raw_mirror
+        else:
+            print(f"[wall] invalid mirror value in config: {raw_mirror!r}", file=sys.stderr)
+
+    return outputs, model, mirror
 
 
 def port_open(host, port):
@@ -113,12 +127,14 @@ def port_open(host, port):
 
 
 class WallApp(Gtk.Application):
-    def __init__(self, url, control, outputs):
+    def __init__(self, url, control, outputs, mirror=False):
         super().__init__(application_id="dev.mizu.l2d.wall")
         self.url = url
         self.control = control
         self.outputs = outputs  # None = every output
+        self.mirror = mirror  # one real view, GtkPicture copies on the rest
         self.views = {}  # monitor connector name -> (window, view)
+        self.source_key = None  # the connector whose view the mirrors repaint
 
     def do_activate(self):
         display = Gdk.Display.get_default()
@@ -164,17 +180,32 @@ class WallApp(Gtk.Application):
                 window, _view = self.views.pop(key)
                 print(f"[wall] monitor removed: {key}", flush=True)
                 window.destroy()
-        for key, mon in current.items():
+                if key == self.source_key:
+                    # the mirrored views painted this one; rebuild every surface
+                    self.source_key = None
+                    for other in list(self.views):
+                        window, _view = self.views.pop(other)
+                        window.destroy()
+        # sorted order picks a stable source screen in mirror mode
+        for key in sorted(current):
             if key not in self.views:
                 print(f"[wall] monitor added: {key}", flush=True)
-                self.views[key] = self.make_surface(mon)
+                if self.mirror and self.source_key in self.views:
+                    source = self.views[self.source_key][1]
+                    self.views[key] = self.make_surface(current[key], source)
+                else:
+                    if self.mirror:
+                        self.source_key = key
+                    self.views[key] = self.make_surface(current[key])
         push_live_screens(sorted(self.views))
 
     @staticmethod
     def monitor_key(mon):
         return mon.get_connector() or f"{mon.get_manufacturer()}-{mon.get_model()}"
 
-    def make_surface(self, monitor):
+    def make_surface(self, monitor, source=None):
+        """A background-layer window on `monitor`. With `source`, it holds a
+        GtkPicture repainting that view instead of its own WebKit one."""
         window = Gtk.Window(application=self)
         window.set_decorated(False)
         LayerShell.init_for_window(window)
@@ -190,20 +221,31 @@ class WallApp(Gtk.Application):
         LayerShell.set_exclusive_zone(window, -1)
         LayerShell.set_keyboard_mode(window, LayerShell.KeyboardMode.NONE)
 
-        view = WebKit.WebView()
-        # transparent page: the scene is the only thing on the background layer
-        view.set_background_color(Gdk.RGBA(red=0.0, green=0.0, blue=0.0, alpha=0.0))
-        settings = view.get_settings()
-        settings.set_enable_webgl(True)
-        settings.set_media_playback_allows_inline(True)
-        settings.set_media_playback_requires_user_gesture(False)
-        window.set_child(view)
-        view.load_uri(self.url)
+        if source is None:
+            view = WebKit.WebView()
+            # transparent page: the scene is the only thing on the background layer
+            view.set_background_color(Gdk.RGBA(red=0.0, green=0.0, blue=0.0, alpha=0.0))
+            settings = view.get_settings()
+            settings.set_enable_webgl(True)
+            settings.set_media_playback_allows_inline(True)
+            settings.set_media_playback_requires_user_gesture(False)
+            window.set_child(view)
+            view.load_uri(self.url)
+        else:
+            # mirror: one WebKitWebProcess serves every screen this way
+            paintable = Gtk.WidgetPaintable()
+            paintable.set_widget(source)
+            view = Gtk.Picture()
+            view.set_paintable(paintable)
+            view.set_content_fit(Gtk.ContentFit.COVER)
+            window.set_child(view)
         window.present()
         return window, view
 
     def views_list(self):
-        return [view for _window, view in self.views.values()]
+        """The real WebKit views; the GtkPicture mirrors receive no JS."""
+        return [view for _window, view in self.views.values()
+                if isinstance(view, WebKit.WebView)]
 
 
 class Control:
@@ -382,7 +424,7 @@ def main():
     parser.add_argument("--outputs", help="comma-separated connector names, e.g. eDP-1,HDMI-A-1")
     args = parser.parse_args()
     cli = [o.strip() for o in args.outputs.split(",") if o.strip()] if args.outputs else None
-    outputs, model = load_config(cli)
+    outputs, model, mirror = load_config(cli)
     url = args.url
     if model:
         parsed = urllib.parse.urlsplit(url)
@@ -391,9 +433,9 @@ def main():
             sep = "&" if parsed.query else ""
             new_query = f"{parsed.query}{sep}model={urllib.parse.quote(model)}" if parsed.query else f"model={urllib.parse.quote(model)}"
             url = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, new_query, parsed.fragment))
-    print(f"[wall] outputs: {outputs if outputs is not None else 'all'}, model: {model or 'default'}", flush=True)
+    print(f"[wall] outputs: {outputs if outputs is not None else 'all'}, model: {model or 'default'}, mirror: {mirror}", flush=True)
     ensure_server(url, serve=not args.no_serve)
-    app = WallApp(url, Control(), outputs)
+    app = WallApp(url, Control(), outputs, mirror)
     return app.run(None)
 
 
