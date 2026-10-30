@@ -8,6 +8,9 @@ Test model (owner, 2026-10-30): **gaoxiong_7** replaces aersasi_3 (Alsace, broke
 tests and screenshots; the web viewer's default `?model=` is now gaoxiong_7. See PLAN §9.
 
 ## Done (verified)
+- R2b.3 (partially done): `wall/mizu-l2d-wall.py` reads `[wall] model` from config.toml
+  and appends `?model=` to the startup URL; `docs/config.example.toml` updated for
+  the web host schema. Systemd unit and Quickshell L2dService integrated via dotfiles.
 - Spikes S1/S2/S4 PASS (design doc §2). Pointer input to background layer
   works on niri; virtual-pointer injection works for testing.
 - C++ daemon skeleton builds green and runs on both outputs (frame loop,

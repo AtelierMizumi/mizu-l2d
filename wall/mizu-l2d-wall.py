@@ -20,6 +20,7 @@ import argparse
 import atexit
 import json
 import os
+import re
 import signal
 import socket
 import subprocess
@@ -69,18 +70,38 @@ def socket_path():
     return Path(runtime) / "mizu-l2d-wall.sock"
 
 
-def load_outputs(cli_outputs):
-    """Connector names to draw on, from --outputs or [wall] outputs in config.toml.
-    None means every output. Unknown config keys are reported, not dropped (SPEC §4.4)."""
-    if cli_outputs is not None:
-        return cli_outputs
+MODEL_RE = re.compile(r"^[a-z0-9_]+$")
+
+
+def load_config(cli_outputs):
+    """Load configuration from config.toml and CLI arguments.
+    Returns (outputs, model). Unknown config keys are reported, not dropped (SPEC §4.4)."""
+    outputs = cli_outputs
+    model = None
     if not CONFIG_PATH.exists():
-        return None
-    with open(CONFIG_PATH, "rb") as f:
-        config = tomllib.load(f)
+        return outputs, model
+    try:
+        with open(CONFIG_PATH, "rb") as f:
+            config = tomllib.load(f)
+    except Exception as err:
+        print(f"[wall] error reading config {CONFIG_PATH}: {err}", file=sys.stderr)
+        return outputs, model
+
     for key in sorted(set(config) - KNOWN_CONFIG_KEYS):
         print(f"[wall] unknown config key ignored: {key}", file=sys.stderr)
-    return config.get("wall", {}).get("outputs")
+
+    wall = config.get("wall", {})
+    if outputs is None:
+        outputs = wall.get("outputs")
+
+    raw_model = wall.get("model")
+    if raw_model is not None:
+        if isinstance(raw_model, str) and MODEL_RE.match(raw_model):
+            model = raw_model
+        else:
+            print(f"[wall] invalid model name in config: {raw_model!r}", file=sys.stderr)
+
+    return outputs, model
 
 
 def port_open(host, port):
@@ -324,10 +345,18 @@ def main():
     parser.add_argument("--outputs", help="comma-separated connector names, e.g. eDP-1,HDMI-A-1")
     args = parser.parse_args()
     cli = [o.strip() for o in args.outputs.split(",") if o.strip()] if args.outputs else None
-    outputs = load_outputs(cli)
-    print(f"[wall] outputs: {outputs if outputs is not None else 'all'}", flush=True)
-    ensure_server(args.url, serve=not args.no_serve)
-    app = WallApp(args.url, Control(), outputs)
+    outputs, model = load_config(cli)
+    url = args.url
+    if model:
+        parsed = urllib.parse.urlsplit(url)
+        q = urllib.parse.parse_qs(parsed.query)
+        if "model" not in q:
+            sep = "&" if parsed.query else ""
+            new_query = f"{parsed.query}{sep}model={urllib.parse.quote(model)}" if parsed.query else f"model={urllib.parse.quote(model)}"
+            url = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, new_query, parsed.fragment))
+    print(f"[wall] outputs: {outputs if outputs is not None else 'all'}, model: {model or 'default'}", flush=True)
+    ensure_server(url, serve=not args.no_serve)
+    app = WallApp(url, Control(), outputs)
     return app.run(None)
 
 
