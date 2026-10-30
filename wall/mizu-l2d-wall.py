@@ -32,6 +32,7 @@ import socket
 import subprocess
 import sys
 import threading
+import time
 import tomllib
 import urllib.parse
 from pathlib import Path
@@ -116,6 +117,31 @@ def load_config(cli_outputs):
             print(f"[wall] invalid mirror value in config: {raw_mirror!r}", file=sys.stderr)
 
     return outputs, model, mirror
+
+
+def touch_last_used(prefab):
+    """Record a model load in the cache ledger (best effort — never fatal).
+
+    mizu-l2d-cache.py reads this to evict by last-used order instead of by
+    guesswork; see docs/remote-model-sources.md (M2).
+    """
+    if not MODEL_RE.fullmatch(prefab or ""):
+        return
+    try:
+        ledger = Path.home() / ".local/share/mizu/l2d" / ".ledger.json"
+        try:
+            data = json.loads(ledger.read_text(encoding="utf-8"))
+        except Exception:
+            data = {}
+        if not isinstance(data.get("prefabs"), dict):
+            data["prefabs"] = {}
+        entry = data["prefabs"].setdefault(prefab, {})
+        entry["last_used"] = int(time.time())
+        tmp = ledger.with_name(ledger.name + f".tmp-{os.getpid()}")
+        tmp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        os.replace(tmp, ledger)
+    except Exception:
+        pass
 
 
 def port_open(host, port):
@@ -328,6 +354,7 @@ class Control:
             return self.run_js(views, f"window.mizu.motion({json.dumps(group)})", respond)
         if cmd == "model":
             prefab = str(msg.get("prefab", ""))
+            touch_last_used(prefab)
             return self.run_js(views, f"window.mizu.model({json.dumps(prefab)})", respond)
         if cmd == "tips":
             val = msg.get("on")
@@ -433,6 +460,8 @@ def main():
             sep = "&" if parsed.query else ""
             new_query = f"{parsed.query}{sep}model={urllib.parse.quote(model)}" if parsed.query else f"model={urllib.parse.quote(model)}"
             url = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, new_query, parsed.fragment))
+    if model:
+        touch_last_used(model)
     print(f"[wall] outputs: {outputs if outputs is not None else 'all'}, model: {model or 'default'}, mirror: {mirror}", flush=True)
     ensure_server(url, serve=not args.no_serve)
     app = WallApp(url, Control(), outputs, mirror)

@@ -93,7 +93,15 @@ Models are prefabs (a `.model3.json` plus textures/motions) under
 
 ```sh
 scripts/fetch-model.sh <prefab> [--bg]   # --bg also fetches the skin background used for theming
+scripts/fetch-model.sh <prefab> --verify # check the installed files against the recorded sha256 manifest
+scripts/mizu-l2d-cache.py status         # disk usage vs. quota, per-model ages
+scripts/mizu-l2d-cache.py enforce        # evict the oldest unpinned models down to the 2 GB quota
+scripts/mizu-l2d-cache.py pin <prefab>   # spare a favorite from eviction
 ```
+
+Downloads are manifest-driven and atomic (a failed run never leaves a half
+model), and the wallpaper host records every model load in the ledger at
+`~/.local/share/mizu/l2d/.ledger.json`, which the cache tool evicts by.
 
 The in-shell model browser downloads on demand through `serve.py`'s
 `POST /api/download`, gated by the local catalog. The catalog and game-data

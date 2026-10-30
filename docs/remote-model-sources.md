@@ -34,25 +34,40 @@ of recently used prefabs within a quota; anything else is one click away.
 
 ## Milestones
 
-### M1 — Manifest per prefab (fetch-model v0.3)
+### M1 — Manifest per prefab (fetch-model v0.3) — SHIPPED 2026-10-31
 
-- Extend `fetch-model.sh` (or add `scripts/fetch-model.py`) to resolve a
-  prefab into an explicit file manifest first: `{path, url, sha256, bytes}`.
-- Fetch to `<dest>.tmp-<pid>/`, verify sha256 per file, then atomic rename to
-  the final dir. A failed download never leaves a half prefab behind (today a
-  mid-fetch failure can).
-- `curl -C -` resume for large textures; bounded parallelism (2–4 files).
-- Keep the `--bg` flag (the palette pipeline needs the skin background).
+Implemented in `scripts/fetch-model.py` (with `fetch-model.sh` as a thin
+wrapper preserving the serve.py/shell contract):
 
-### M2 — Cache management (`scripts/mizu-l2d-cache.py`)
+- Model files resolved from `model3.json` (moc, textures, motions, physics,
+  pose) with the third-party-CDN path-safety check kept.
+- Downloads land in `<dest>.tmp-<pid>/`, sha256 is recorded per file into
+  `.mizu-manifest.json`, then the directory is swapped in atomically; a failed
+  run leaves the old model untouched. `--verify` re-checks an installed
+  prefab; `--force` ignores the reuse shortcut.
+- Files already present are reused without re-download; new files fetch with
+  bounded parallelism (`--jobs`, default 3) and `curl -C -` resume.
+- `--bg` still resolves the skin background from the mapping and records its
+  hash in `l2d/bg/.mizu-manifest.json`.
+- On success the cache ledger gets the prefab's size and last-used time.
 
-- Ledger at `~/.local/share/mizu/l2d/.ledger.json`: prefab → {last_used,
-  size, pinned}. The host already knows every load; a one-line ctl hook
-  (`model` command) updates `last_used`.
-- Policy: quota (default e.g. 2 GB) with LRU eviction of unpinned prefabs;
-  `--pin` / `--unpin` for favorites; `--status` reports usage.
-- The shell browser grows an "evict" affordance per downloaded model and a
-  total-usage readout (IPC: `l2dCacheStatus`, `l2dCacheEvict`).
+### M2 — Cache management (`scripts/mizu-l2d-cache.py`) — SHIPPED 2026-10-31
+
+- Ledger at `~/.local/share/mizu/l2d/.ledger.json` (module
+  `scripts/l2d_ledger.py`): prefab → {last_used, pinned, bytes} + optional
+  quota_bytes. Every writer (host, fetch, cache tool) does
+  load-modify-atomic-replace so they interleave safely.
+- The host touches `last_used` on every model load (`wall.py
+  touch_last_used`, startup + `model` command); the shell refreshes its read
+  after downloads, model switches, and cache operations.
+- Commands: `status [--json] [--rescan]`, `scan` (seed the whole library),
+  `touch`, `pin`/`unpin`, `evict`, `enforce [--quota GB] [--dry-run]`,
+  `quota <GB>`, `verify [prefab]`.
+- Policy: 2 GB default quota; eviction is LRU over unpinned prefabs and never
+  touches the active model (`[wall] model`), pinned prefabs, or anything that
+  does not look like an installed prefab. `enforce` only acts when invoked.
+- Shell integration: IPC `l2dCacheStatus` / `l2dCacheEvict` / `l2dCacheClean`
+  and a "Model storage" action on the Live2D settings card.
 
 ### M3 — Source priority list
 
