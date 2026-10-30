@@ -1,0 +1,14 @@
+[Unit]
+Description=Mizu L2D Live2D wallpaper host
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=exec
+Environment=LD_PRELOAD=/usr/lib/libgtk4-layer-shell.so
+ExecStart=/usr/bin/python3 %h/Projects/Tools/mizu-l2d/wall/mizu-l2d-wall.py
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target
