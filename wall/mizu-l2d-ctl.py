@@ -10,6 +10,7 @@ usage:
   mizu-l2d-ctl.py camera reset
   mizu-l2d-ctl.py motion <group>            e.g. motion touch_head
   mizu-l2d-ctl.py model <prefab>            e.g. model rangbaer_4
+  mizu-l2d-ctl.py tips [on|off]             toggle or set interaction hints
 Socket: $XDG_RUNTIME_DIR/mizu-l2d-wall.sock (override with --socket).
 """
 import argparse
@@ -41,13 +42,20 @@ def build_message(args):
         return {"cmd": "motion", "group": args.values[0]}
     if args.cmd == "model":
         return {"cmd": "model", "prefab": args.values[0]}
+    if args.cmd == "tips":
+        on = None
+        if args.action in ("true", "1", "on"):
+            on = True
+        elif args.action in ("false", "0", "off"):
+            on = False
+        return {"cmd": "tips", "on": on}
     raise SystemExit(f"unknown command {args.cmd}")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--socket", default=str(default_socket()))
-    parser.add_argument("cmd", choices=["ping", "status", "page", "camera", "motion", "model"])
+    parser.add_argument("cmd", choices=["ping", "status", "page", "camera", "motion", "model", "tips"])
     parser.add_argument("action", nargs="?", help="camera: zoom|pos|reset")
     parser.add_argument("values", nargs="*")
     args = parser.parse_args()

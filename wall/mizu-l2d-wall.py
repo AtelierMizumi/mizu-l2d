@@ -285,6 +285,10 @@ class Control:
         if cmd == "model":
             prefab = str(msg.get("prefab", ""))
             return self.run_js(views, f"window.mizu.model({json.dumps(prefab)})", respond)
+        if cmd == "tips":
+            val = msg.get("on")
+            arg = f"{"true" if val else "false"}" if val is not None else ""
+            return self.run_js(views, f"window.mizu.tips({arg})", respond)
         return respond({"ok": False, "error": f"unknown command: {cmd}"})
 
     @staticmethod

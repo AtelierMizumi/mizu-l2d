@@ -600,6 +600,10 @@ function installControlApi() {
             switchModel(prefab);
             return 'ok';
         },
+        tips(on) {
+            setTips(on !== undefined ? Boolean(on) : !tipsOn);
+            return JSON.stringify(tipsOn);
+        },
         status() {
             return JSON.stringify({
                 prefab: MODEL, view, tips: tipsOn, muted: dialogue?.state.mute ?? null,
