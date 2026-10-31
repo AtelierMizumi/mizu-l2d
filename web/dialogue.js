@@ -97,9 +97,11 @@
         }
     }
 
-    // game event -> voice key: head/body/special taps, drag/touch states and main poses
+    // game event -> voice key. Returns null when the skin has no words entry
+    // for the action: callers must stay silent instead of playing a line that
+    // belongs to a different zone.
     function keyForAction(action) {
-        if (!action) return 'touch';
+        if (!action) return null;
         const a = String(action).toLowerCase();
         if (a === 'touch_head' || a === 'headtouch') return 'headtouch';
         if (a === 'touch_body' || a === 'touch') return 'touch';
@@ -107,9 +109,10 @@
         if (a.startsWith('touch_drag') || a.startsWith('touch_idle')) {
             return (words && words['touch2']) ? 'touch2' : 'touch';
         }
-        const m = /^main_?(\\d)$/.exec(a);
+        const m = /^main_?(\d)$/.exec(a);
         if (m) return `main${m[1]}`;
-        return 'touch';
+        if (['login', 'home', 'mission', 'mission_complete', 'mail'].includes(a)) return a;
+        return null;
     }
 
     function buildDom() {
@@ -275,10 +278,6 @@
         if (key === 'touch_special') key = 'touch2';
 
         let entry = words && words[key] ? words[key] : null;
-        if ((!entry || !entry.line) && words) {
-            // Intelligent fallback: touch -> main1 -> first entry
-            entry = words['touch'] || words['main1'] || Object.values(words)[0];
-        }
         if (!entry || !entry.line) return false;
         const now = performance.now();
         if (!force && now - lastSayAt < COOLDOWN_MS) return false;

@@ -1444,7 +1444,8 @@ function setupPointerEvents() {
             }
             lastTap = h.action;
             StateManager.playAction(h.action);
-            dialogue?.say(window.MizuDialogue?.keyForAction(h.action) || 'touch_body');
+            const lineKey = window.MizuDialogue?.keyForAction(h.action);
+            if (lineKey) dialogue?.say(lineKey);
             return;
         }
         if (placementLocked) {
