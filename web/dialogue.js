@@ -40,6 +40,12 @@
     let onChange = () => {};
     let els = null;
     let currentLineText = '';
+    // Interaction gate window (PARITY-SPEC): only non-forced say() calls — the
+    // interaction lines — keep the model busy until its line is done reading;
+    // chatter (force:true) never gates interactions. The audio-metadata handler
+    // extends the window only for the gated token, capped by the bubble hide.
+    let busyUntil = 0;
+    let gateToken = null;
 
     // Listen to shared audio channel to prevent duplicates across multiple monitors
     if (audioChannel) {
@@ -236,6 +242,9 @@
                 if (!audio || state.mute) return;
                 const audioDurationMs = Math.ceil(audio.duration * 1000) + AUDIO_POST_PAD_MS;
                 const dynamicDuration = Math.max(baseReadingMs, audioDurationMs);
+                if (currentAudioToken === gateToken) {
+                    busyUntil = Math.max(busyUntil, performance.now() + audioDurationMs);
+                }
                 clearTimeout(hideTimer);
                 hideTimer = setTimeout(() => hideBubble(), dynamicDuration);
 
@@ -284,6 +293,12 @@
         lastSayAt = now;
 
         const token = `${entry.audio || key}_${Math.floor(Date.now() / 300)}`;
+        if (!force) {
+            gateToken = token;
+            // performance.now() clock — interactionBusy() compares against the
+            // same clock; mixing Date.now() here would lock interactions forever
+            busyUntil = performance.now() + computeReadingDuration(entry.line);
+        }
         show(entry.line);
         playAudio(entry.audio, entry.line, token);
         return true;
@@ -363,6 +378,7 @@
             get text() { return els?.text ? els.text.textContent : ''; },
             get visible() { return els?.bubble ? els.bubble.classList.contains('show') : false; },
             get playing() { return !!audio; },
+            get busyUntil() { return busyUntil; },
         };
     }
 

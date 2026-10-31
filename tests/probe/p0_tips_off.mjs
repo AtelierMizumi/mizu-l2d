@@ -31,10 +31,16 @@ const targets = await withPage(prefab, async (page) => {
 });
 if (!targets.length) { console.error('FAIL: no mesh zones measured for ' + prefab); process.exit(1); }
 
-// 2. fresh load, tips off (default state) -> click every recorded pixel
+// 2. fresh load, tips off (default state) -> click every recorded pixel.
+//    Between clicks, wait for the busy gate to release (P0-2: a playing
+//    animation+voice correctly swallows further triggers).
 const results = await withPage(prefab, async (page) => {
     const out = [];
+    const idleExpr = `(() => { const mm = __mizu.model.internalModel.motionManager;
+        return (mm.state.currentGroup === undefined || mm.state.currentGroup === mm.groups.idle)
+            && performance.now() >= (__mizu.dialogue ? (__mizu.dialogue.busyUntil ?? 0) : 0); })()`;
     for (const z of targets) {
+        await page.waitFor(idleExpr, 40000).catch(() => {});
         await page.click(z.x, z.y);
         await new Promise(r => setTimeout(r, 300)); // 0.1 s fire delay + status refresh
         const st = await page.evaluate('window.mizu.status()');

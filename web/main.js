@@ -379,6 +379,41 @@ function setLock(locked, save = true) {
 
 let currentSkins = null;
 
+// Motion loop policy (nagami parity): touch/main/event motions play ONCE and
+// the runtime falls back to the current idle group afterwards — many AL touch
+// motions ship Loop=true (e.g. gaoxiong_7 touch_head, 15.2 s), which would
+// otherwise never hand control back. Pose groups keep looping: idle poses are
+// the resting state, and `effect` is the ambient layer.
+const LOOPING_GROUP = /^(idle\d*|touch_idle\d+|effect)$/i;
+
+function applyMotionLoopPolicy(m) {
+    const mm = m.internalModel.motionManager;
+    if (!mm || mm.__mizuLoopPolicy) return;
+    const origCreate = mm.createMotion.bind(mm);
+    mm.createMotion = async (file, group, index) => {
+        const motion = await origCreate(file, group, index);
+        if (motion && group && !LOOPING_GROUP.test(group)) {
+            if (typeof motion.setLoop === 'function') motion.setLoop(false);
+            else motion.isLoop = false;
+        }
+        return motion;
+    };
+    mm.__mizuLoopPolicy = true;
+}
+
+// Interaction gate (spec decision 1): while a non-idle motion plays, or the
+// interaction's own voice is still inside its reading window, further triggers
+// are ignored — clicks never cut a running animation + voice. The voice branch
+// expires with the bubble (dialogue.busyUntil) so a stalled audio element can
+// never lock interactions permanently (AC-2.5). Type-6 zones may bypass.
+function interactionBusy() {
+    if (!model) return false;
+    const mm = model.internalModel.motionManager;
+    if (mm.state.currentGroup !== undefined && mm.state.currentGroup !== StateManager.currentIdleGroup) return true;
+    if (dialogue && performance.now() < (dialogue.busyUntil ?? 0)) return true;
+    return false;
+}
+
 const StateManager = {
     currentState: 0,
     currentIdleGroup: 'idle',
@@ -535,14 +570,6 @@ const StateManager = {
 
             if (targetIdle === 0) {
                 this.currentSequenceOffset = { x: 0, y: 0 };
-                setTimeout(() => {
-                    if (this.currentState === 0) {
-                        this.restoreDefaults();
-                        if (model) {
-                            model.motion(this.baseIdleGroup, 0, 3);
-                        }
-                    }
-                }, 750);
             } else {
                 this.currentSequenceOffset = this.actionOffsets.get(actLower) || { x: 0, y: 0 };
             }
@@ -1058,6 +1085,16 @@ const PropManager = {
     }
 };
 
+// Per-zone cooldown from the skin's own drags data (limitTime is seconds in
+// skins.json); the 1 s fallback only covers zones with no matching entry.
+function dragsLimitTimeMs(skins, part, action) {
+    const drags = skins?.drags;
+    if (!Array.isArray(drags)) return 1000;
+    const hit = drags.find(d => d.part === part || d.trigger?.action === action);
+    const lt = hit?.limitTime;
+    return Number.isFinite(lt) && lt > 0 ? Math.round(lt * 1000) : 1000;
+}
+
 function buildHotspots(skins) {
     if (skins !== undefined) currentSkins = skins;
     if (!model) return;
@@ -1083,7 +1120,7 @@ function buildHotspots(skins) {
                 index: idx,
                 part: z.part,
                 label: t(z.labelKey),
-                cooldown: 1000,
+                cooldown: dragsLimitTimeMs(currentSkins, z.part, act),
                 lastFired: -Infinity,
                 badge: makeBadge(hotspots.length + 1, String(hotspots.length + 1), 'normal'),
             });
@@ -1437,6 +1474,7 @@ function setupPointerEvents() {
             press = null;
             const now = performance.now();
             if (now - h.lastFired < h.cooldown) return;
+            if (interactionBusy() && !h.bypassBusy) return;
             h.lastFired = now;
             if (h.isProp) {
                 PropManager.toggle();
@@ -1740,6 +1778,7 @@ async function loadModel(prefab) {
     MODEL = prefab;
     history.replaceState(null, '', `?model=${prefab}`);
     model = loaded;
+    applyMotionLoopPolicy(model);
     currentSkins = skins;
     StateManager.init(skins);
     setupPlacement(skins, placementIndex);
