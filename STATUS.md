@@ -1,13 +1,49 @@
 # STATUS — state ledger (update at the END of every work unit)
 
-Last updated: 2026-10-30
-Last agent: Claude (R1 complete; R2a.1, R2a.2 and part of R2b.1 done; tested on the live niri session)
-Next unit: **R2d.2** (mirror one WebKit view onto the other outputs; spike first), then R2d.3 (hotplug). R2b.2 and R2b.3 need owner decisions, see PLAN R2.
-Handover for continuation: **docs/HANDOVER.md** (read it first; it lists owner-only steps).
+Last updated: 2026-10-31
+Last agent: Claude (interaction-parity program: spec + P0 fixes + drags engine + probes; branch feat/interaction-parity)
+Next unit: merge `feat/interaction-parity` to master after owner review; then R2d.2 (mirror) as before.
+Owner decisions open: Spine viewer license posture (docs/SPINE-SPIKE.md — GO verdict, Spine Runtimes License has no personal-use exemption; runtime fetched-on-demand, never committed).
+Handover for continuation: **docs/HANDOVER.md**, **docs/PARITY-SPEC.md**, **docs/PARITY-PLAN.md**, **docs/SPINE-SPIKE.md**.
 Test model (owner, 2026-10-30): **gaoxiong_7** replaces aersasi_3 (Alsace, broken) for all
 tests and screenshots; the web viewer's default `?model=` is now gaoxiong_7. See PLAN §9.
+Popup cross-check set (owner, 2026-10-31): antu_2 (Azuchi elevator — primary), benningdun_2, wuqi_3.
 
 ## Done (verified)
+- Interaction parity (owner-approved docs/PARITY-SPEC.md, executed via docs/PARITY-PLAN.md; all on
+  branch `feat/interaction-parity`, AC sweep `node tests/probe/run-all.mjs` = 10/10 PASS,
+  unit `node --test tests/unit/` = 48/48):
+  - P0-1 hit-testing no longer depends on the tips overlay (bounds computed lazily/per-tick
+    independently; tips is a visual layer only). Probe: tips-OFF clicks fire identical zones on
+    gaoxiong_7/antu_2/benningdun_2.
+  - P0-2 busy gate: clicks during a running animation+voice are ignored (type-6 bypasses);
+    cooldowns read `drags[].limitTime` (antu_2 ships 0.1 s entries — the old hardcoded 1 s was
+    wrong); the 750 ms forced-idle timer is gone; `dialogue.busyUntil` (performance.now clock)
+    caps the voice window (AC-2.5).
+  - Root-cause fix: non-idle motions now play ONCE (LOOPING_GROUP = idle*/touch_idle*/effect keep
+    looping) — many AL touch motions ship Loop=true (gaoxiong_7 touch_head 15.2 s) which wedged
+    the 0.4.0 idle reservation permanently; plus a stale-`currentGroup` watchdog (wuqi_3
+    touch_special) and duration enforcement for one-shots the runtime keeps looping.
+  - P0-3 dialogue: `/^main_?(\d)$/` regex fixed, event keys mapped, wrong-zone substitution
+    removed (missing key = silent). Unit 7/7.
+  - P0-4 drift: motion camera params (fixed Cubism vocabulary) restore lerped on motion end;
+    Reset Pose unified (nagami semantics); the Gaoxiong param-policing tick block and the
+    "30"/"31" offset hack are deleted.
+  - P1 engine: web/engine/{zones,triggers,params,state}.js (dual-env, node-testable) implement
+    drags[] normalization, all 16 trigger types, param writer + relations 101-104 + listener
+    bands, idle-pose state machine with reactCondition/ignore/enable gating. Wired into main.js:
+    zone badges from data, "N / M hotspots" counter (nagami parity, M = drags.length), markers
+    muted while playing, Touch* synthesis stays additive for the assistant touch parts.
+  - Evidence: antu_2 elevator — clicking the floor panel fires touch_idle1 and switches the idle
+    pose (state 1, sequence chained), status/dialogue match nagami; AC-5.4 param drags verified on
+    beianpudunii_2 + yuekechengii_3; census (`scripts/census.mjs`) 239 prefabs / 3876 drags /
+    0 mismatches vs index.json.
+  - Known limitations (documented): effect motion layer not stacked (single motion manager,
+    minified bundle); xiaqi live board summon is game-UI flow, not drags data (engine level
+    unit-tested); paraRange focus clamp + dragRate gaze scaling deferred (next unit); some drags
+    ignore[] gates keep zones silent at rest — verified as game-accurate.
+  - P2-6a Spine spike: docs/SPINE-SPIKE.md (GO; 225-entry catalog; pixi-spine 3.1.2 UMD; license
+    gate needs owner decision before 6b/6c).
 - R2b.3 (partially done): `wall/mizu-l2d-wall.py` reads `[wall] model` from config.toml
   and appends `?model=` to the startup URL; `docs/config.example.toml` updated for
   the web host schema. Systemd unit and Quickshell L2dService integrated via dotfiles.
