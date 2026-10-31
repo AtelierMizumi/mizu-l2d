@@ -379,6 +379,52 @@ function setLock(locked, save = true) {
 
 let currentSkins = null;
 
+// One-shot enforcement bookkeeping: { group, t } for the currently playing
+// non-idle motion (see the tick watchdog).
+let activeMotionSince = null;
+
+// Camera-parameter restore state (see the tick comment): the fixed Cubism
+// camera vocabulary is a runtime convention, not skin data.
+const CAMERA_PARAM_NAMES = [
+    'CameraX', 'CameraY', 'CameraS',
+    'ParamCameraPositionX', 'ParamCameraPositionY', 'ParamCameraX', 'ParamCameraY', 'ParamCameraScale',
+    'ParamCaraCameraPositionX', 'ParamCaraCameraPositionY', 'ParamCaraCameraScale',
+    'ParamCharaMainPositionX', 'ParamCharaMainPositionY', 'ParamCharaMainScale',
+];
+const CAMERA_RESTORE_MS = 300;
+let motionWasPlaying = false;
+let motionTouchedCamera = new Set();
+let cameraRestore = null; // { start: Map(paramIndex -> value), t0 }
+
+function trackMotionCameraTouch() {
+    if (!model || !motionWasPlaying) return;
+    const cm = model.internalModel.coreModel;
+    const ids = cm?._model?.parameters?.ids;
+    const defs = cm?._model?.parameters?.defaultValues;
+    if (!ids || !defs) return;
+    for (const name of CAMERA_PARAM_NAMES) {
+        const i = ids.indexOf(name);
+        if (i < 0) continue;
+        if (Math.abs(cm.getParameterValueByIndex(i) - defs[i]) > 0.01) motionTouchedCamera.add(name);
+    }
+}
+
+// Kick the same restore off from explicit paths (Reset Pose): everything the
+// motions touched eases back to defaults without snapping.
+function startCameraRestore() {
+    if (!model) return;
+    const cm = model.internalModel.coreModel;
+    const ids = cm?._model?.parameters?.ids;
+    if (!ids) return;
+    const start = new Map();
+    for (const name of CAMERA_PARAM_NAMES) {
+        const i = ids.indexOf(name);
+        if (i >= 0) start.set(i, cm.getParameterValueByIndex(i));
+    }
+    if (start.size) cameraRestore = { start, t0: performance.now() };
+    motionTouchedCamera.clear();
+}
+
 // Motion loop policy (nagami parity): touch/main/event motions play ONCE and
 // the runtime falls back to the current idle group afterwards — many AL touch
 // motions ship Loop=true (e.g. gaoxiong_7 touch_head, 15.2 s), which would
@@ -389,12 +435,21 @@ const LOOPING_GROUP = /^(idle\d*|touch_idle\d+|effect)$/i;
 function applyMotionLoopPolicy(m) {
     const mm = m.internalModel.motionManager;
     if (!mm || mm.__mizuLoopPolicy) return;
+    mm.__mizuDurations = {};
     const origCreate = mm.createMotion.bind(mm);
     mm.createMotion = async (file, group, index) => {
         const motion = await origCreate(file, group, index);
-        if (motion && group && !LOOPING_GROUP.test(group)) {
-            if (typeof motion.setLoop === 'function') motion.setLoop(false);
-            else motion.isLoop = false;
+        if (motion && group) {
+            // remember the parsed duration for the one-shot enforcement below
+            const d = (motion._loopDurationSeconds
+                ?? motion._motionData?.duration
+                ?? 0) * 1000
+                + ((motion._fadeInSeconds ?? 0) + (motion._fadeOutSeconds ?? 0)) * 1000;
+            mm.__mizuDurations[group] = d;
+            if (!LOOPING_GROUP.test(group)) {
+                if (typeof motion.setLoop === 'function') motion.setLoop(false);
+                else motion.isLoop = false;
+            }
         }
         return motion;
     };
@@ -487,19 +542,6 @@ const StateManager = {
                         y: d.offsetY || 0
                     });
                 }
-                // Map skin drag offset parameters (e.g. Takao kneading Touch_drag30 -> touch_drag6)
-                if (d.param && (d.offsetX !== undefined || d.offsetY !== undefined)) {
-                    const pLower = d.param.toLowerCase();
-                    if (pLower.includes('30') || pLower.includes('31')) {
-                        this.actionOffsets.set('touch_drag6', { x: d.offsetX || 0, y: d.offsetY || 0 });
-                        this.actionOffsets.set('touch_drag5', { x: (d.offsetX || 0) * 0.5, y: (d.offsetY || 0) * 0.5 });
-                        this.actionOffsets.set('touch_drag7', { x: d.offsetX || 0, y: d.offsetY || 0 });
-                    }
-                    if (pLower.includes('23') || pLower.includes('24')) {
-                        this.actionOffsets.set('touch_drag8', { x: (d.offsetX || 0) * 0.5, y: (d.offsetY || 0) * 0.5 });
-                        this.actionOffsets.set('touch_drag9', { x: d.offsetX || 0, y: d.offsetY || 0 });
-                    }
-                }
             }
         }
 
@@ -577,7 +619,26 @@ const StateManager = {
             console.log('[mizu-state] Transitioned via', action, '-> state:', targetIdle, 'idleGroup:', idleGroup, 'offset:', this.currentSequenceOffset, 'next:', trans.nextAction);
         } else {
             // Keep current resting idle pose so transient reactions do not kill the state
-            model.internalModel.motionManager.groups.idle = this.currentIdleGroup;
+            // — unless the action IS a pose group: playing one directly (locked-tap
+            // advance, ctl motion, a sequence step without its own transition) settles
+            // into that pose (game parity) and must promote it, or the busy gate
+            // would wait forever on a looping motion that idle never replaces.
+            const poseMatch = /^(idle\d*|touch_idle\d+)$/i.exec(actLower);
+            const authored = poseMatch && Object.keys(model.internalModel.settings.motions || {})
+                .find(g => g.toLowerCase() === actLower);
+            if (authored && authored !== this.currentIdleGroup) {
+                this.currentIdleGroup = authored;
+                this.activeSequence = null;
+                const n = poseMatch[1];
+                if (n !== undefined && n !== '') {
+                    this.currentState = parseInt(n, 10);
+                    this.idleMotions.set(this.currentState, authored);
+                }
+                this.currentSequenceOffset = this.actionOffsets.get(actLower) || { x: 0, y: 0 };
+                model.internalModel.motionManager.groups.idle = authored;
+            } else {
+                model.internalModel.motionManager.groups.idle = this.currentIdleGroup;
+            }
         }
 
         const started = model.motion(action, undefined, 3);
@@ -603,6 +664,8 @@ const StateManager = {
         this.currentIdleGroup = this.baseIdleGroup;
         this.currentSequenceOffset = { x: 0, y: 0 };
         this.restoreDefaults();
+        cameraRestore = null;
+        motionTouchedCamera.clear();
         if (model) {
             model.internalModel.motionManager.groups.idle = this.baseIdleGroup;
             const motions = Object.keys(model.internalModel.settings.motions || {});
@@ -1838,13 +1901,31 @@ function tick() {
         perf.mode = shouldBeActive ? 'active' : 'idle';
     }
 
-    // 0.4.0 leaves a stale idle reservation behind when an idle motion is
-    // requested but never started (state.complete() clears currentGroup but
-    // nothing clears reservedIdleGroup), so shouldRequestIdleMotion() never
-    // fires again and auto-idle silently stops. Drop the stale reservation
-    // whenever no motion is current; state.start() re-sets it legitimately.
+    // 0.4.0 motion-state wedges:
+    // (a) a reserved idle motion that never started leaves reservedIdleGroup
+    //     set forever, so shouldRequestIdleMotion() never fires again;
+    // (b) a one-shot can keep LOOPING despite the loop flag above (observed on
+    //     wuqi_3 touch_special: _isLoop=false yet the queue entry never
+    //     finishes), which wedges the same machinery AND reads as busy forever.
+    //     Enforce the parsed duration: past it, stop the queue and complete the
+    //     state — the idle request flow restarts on the next tick.
     if (mm.state.currentGroup === undefined && mm.state.reservedIdleGroup !== undefined) {
         mm.state.setReservedIdle(undefined, undefined);
+    }
+    const curGroup = mm.state.currentGroup;
+    if (curGroup && curGroup !== mm.groups.idle) {
+        if (activeMotionSince?.group !== curGroup) {
+            activeMotionSince = { group: curGroup, t: t0 };
+            cameraRestore = null; // the new motion owns the camera params again
+        }
+        const durMs = mm.__mizuDurations?.[curGroup];
+        if (durMs && t0 - activeMotionSince.t > durMs + 400) {
+            if (typeof mm._stopAllMotions === 'function') mm._stopAllMotions();
+            mm.state.complete();
+            activeMotionSince = null;
+        }
+    } else {
+        activeMotionSince = null;
     }
 
     // 2. Manual unified Cubism update (pass elapsed ms from app.ticker)
@@ -1852,20 +1933,35 @@ function tick() {
     model.update(app.ticker.deltaMS);
     const tCubism = performance.now() - tCubismStart;
 
-    // Safety check: when at base idle (state 0) and not playing an active motion, prevent any interaction parameters from remaining stuck
-    if (StateManager.currentState === 0 && !isPlayingMotion) {
+    // Camera-parameter restore (spec BUG-4): motions may pan/zoom the view by
+    // writing the fixed Cubism camera vocabulary; when one ends the container
+    // would otherwise stay displaced. Skins whose idle motions animate the
+    // camera heal themselves — this lerp is the safety net for the rest, and
+    // it replaces the old per-skin "safety check" parameter list.
+    trackMotionCameraTouch();
+    if (motionWasPlaying && !isPlayingMotion && motionTouchedCamera.size) {
         const cm = model.internalModel.coreModel;
-        if (cm?._model?.parameters) {
-            const ids = cm._model.parameters.ids;
-            const defs = cm._model.parameters.defaultValues;
-            const checkParams = ['Param60', 'Param52', 'Param53', 'Param74', 'Param50', 'Touch_drag21', 'Touch_drag19', 'Touch_drag20', 'Touch_drag17', 'Touch_drag14'];
-            for (const pid of checkParams) {
-                const idx = ids.indexOf(pid);
-                if (idx >= 0 && Math.abs(cm.getParameterValueByIndex(idx) - defs[idx]) > 0.01) {
-                    cm.setParameterValueByIndex(idx, defs[idx]);
-                }
+        const ids = cm._model?.parameters?.ids;
+        if (ids) {
+            const start = new Map();
+            for (const name of motionTouchedCamera) {
+                const i = ids.indexOf(name);
+                if (i >= 0) start.set(i, cm.getParameterValueByIndex(i));
             }
+            if (start.size) cameraRestore = { start, t0: t0 };
         }
+        motionTouchedCamera.clear();
+    }
+    motionWasPlaying = isPlayingMotion;
+    if (cameraRestore) {
+        const cm = model.internalModel.coreModel;
+        const defs = cm?._model?.parameters?.defaultValues;
+        const k = Math.min(1, (t0 - cameraRestore.t0) / CAMERA_RESTORE_MS);
+        const e = 1 - Math.pow(1 - k, 3); // ease-out cubic, no snap
+        for (const [i, startV] of cameraRestore.start) {
+            cm.setParameterValueByIndex(i, startV + (defs[i] - startV) * e);
+        }
+        if (k >= 1) cameraRestore = null;
     }
 
     // 3.5. Prop Manager: smooth facial expression overrides
