@@ -48,7 +48,9 @@
             enable: Array.isArray(entry.enable) ? entry.enable : [],
             ignoreAction: entry.ignoreAction ?? null,
             ignoreReact: entry.ignoreReact ?? null,
-            limitTimeMs: limitTime && limitTime > 0 ? Math.round(limitTime * 1000) : 1000,
+            // spec: the 1 s fallback covers only absent/invalid values — an
+            // explicit 0 means "no cooldown" and passes through
+            limitTimeMs: limitTime === null || limitTime < 0 ? 1000 : Math.round(limitTime * 1000),
             offsetX: num(entry.offsetX) ?? 0,
             offsetY: num(entry.offsetY) ?? 0,
             label: entry.part ?? null,

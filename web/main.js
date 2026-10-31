@@ -389,6 +389,7 @@ let engineParams = null;    // param writer (pointer routing lands in Task 11)
 let engineLastAction = null;
 let paramDragZone = null;   // zone whose parameter follows the pointer
 let paramDragLastT = 0;
+let pendingParam = null;    // armed on down; starts the drag after real movement
 
 function readParam(name) {
     if (!model || !name) return 0;
@@ -425,6 +426,17 @@ function setPartOpacityByName(name, v) {
 
 // The engine's fire callback: dialogue + motion through the StateManager
 // facade (which consults the state engine for the pose switch).
+// type-5 removeComList: hide the listed parts while the action plays
+function applyRemoveComList(action, active) {
+    if (!engineParams || !engineZones || !action) return;
+    const a = String(action).toLowerCase();
+    for (const zone of engineZones.zones) {
+        if (zone.trigger && zone.trigger.type === 5 && String(zone.action).toLowerCase() === a) {
+            engineParams.applyVisibility(zone, active);
+        }
+    }
+}
+
 function engineFire(zone, action) {
     void zone;
     if (!action) return;
@@ -479,7 +491,11 @@ function setupInteractionEngine(skins) {
         ctx: {
             now: () => performance.now(),
             setIdleByIndex: (n) => StateManager.setState(n),
-            actionIndex: () => -1, // actionList step tracking arrives with Task 11
+            // relations 103 write values by actionList step (sequence position)
+            actionIndex: () => {
+                const step = StateManager.activeSequence?.step;
+                return Number.isFinite(step) && step > 0 ? step - 1 : -1;
+            },
         },
     });
 
@@ -514,6 +530,7 @@ const CAMERA_PARAM_NAMES = [
 ];
 const CAMERA_RESTORE_MS = 300;
 let motionWasPlaying = false;
+let motionWasPlayingGroup = null;
 let motionTouchedCamera = new Set();
 let cameraRestore = null; // { start: Map(paramIndex -> value), t0 }
 
@@ -530,22 +547,6 @@ function trackMotionCameraTouch() {
     }
 }
 
-// Kick the same restore off from explicit paths (Reset Pose): everything the
-// motions touched eases back to defaults without snapping.
-function startCameraRestore() {
-    if (!model) return;
-    const cm = model.internalModel.coreModel;
-    const ids = cm?._model?.parameters?.ids;
-    if (!ids) return;
-    const start = new Map();
-    for (const name of CAMERA_PARAM_NAMES) {
-        const i = ids.indexOf(name);
-        if (i >= 0) start.set(i, cm.getParameterValueByIndex(i));
-    }
-    if (start.size) cameraRestore = { start, t0: performance.now() };
-    motionTouchedCamera.clear();
-}
-
 // Motion loop policy (nagami parity): touch/main/event motions play ONCE and
 // the runtime falls back to the current idle group afterwards — many AL touch
 // motions ship Loop=true (e.g. gaoxiong_7 touch_head, 15.2 s), which would
@@ -553,7 +554,7 @@ function startCameraRestore() {
 // the resting state, and `effect` is the ambient layer.
 const LOOPING_GROUP = /^(idle\d*|touch_idle\d+|effect)$/i;
 
-function applyMotionLoopPolicy(m) {
+function applyMotionLoopPolicy(m, animatorFades) {
     const mm = m.internalModel.motionManager;
     if (!mm || mm.__mizuLoopPolicy) return;
     mm.__mizuDurations = {};
@@ -571,10 +572,36 @@ function applyMotionLoopPolicy(m) {
                 if (typeof motion.setLoop === 'function') motion.setLoop(false);
                 else motion.isLoop = false;
             }
+            // nagami takes the default 0.2 s fade-in from the model's
+            // animator.json anyState transitions (per target group)
+            const fade = animatorFades && animatorFades.get(group.toLowerCase());
+            if (fade && typeof motion.setFadeInTime === 'function') motion.setFadeInTime(fade);
         }
         return motion;
     };
     mm.__mizuLoopPolicy = true;
+}
+
+// animator.json (mirrored per prefab): layers[].anyState[{to, duration}] —
+// the fade-in each target group is entered with. Missing file = no overrides.
+async function loadAnimatorFades(prefab) {
+    try {
+        const resp = await fetch(`assets/${prefab}/${prefab}.animator.json`);
+        if (!resp.ok) return null;
+        const data = await resp.json();
+        const fades = new Map();
+        for (const layer of data?.layers ?? []) {
+            for (const tr of layer?.anyState ?? []) {
+                if (typeof tr?.to === 'string' && Number.isFinite(tr?.duration) && tr.duration > 0) {
+                    const k = tr.to.toLowerCase();
+                    if (!fades.has(k)) fades.set(k, tr.duration);
+                }
+            }
+        }
+        return fades.size ? fades : null;
+    } catch {
+        return null;
+    }
 }
 
 // Interaction gate (spec decision 1): while a non-idle motion plays, or the
@@ -679,6 +706,7 @@ const StateManager = {
         this.syncFromEngineState();
 
         const started = model.motion(action, undefined, 3);
+        applyRemoveComList(actLower, true);
         this.updateUi();
         try { buildHotspots(); } catch (err) { console.error('[mizu] buildHotspots error:', err); }
         return started;
@@ -707,11 +735,7 @@ const StateManager = {
         motionTouchedCamera.clear();
         if (model) {
             model.internalModel.motionManager.groups.idle = this.baseIdleGroup;
-            const motions = Object.keys(model.internalModel.settings.motions || {});
-            const resetMotion = motions.find(m => m.toLowerCase() === 'touch_drag10') ||
-                                motions.find(m => m.toLowerCase() === 'touch_idle4') ||
-                                this.baseIdleGroup;
-            model.motion(resetMotion, undefined, 3);
+            model.motion(this.baseIdleGroup, undefined, 3);
         }
         this.updateUi();
         try { buildHotspots(); } catch (err) { console.error('[mizu] buildHotspots error:', err); }
@@ -908,8 +932,7 @@ const PropManager = {
             const el = document.getElementById(id);
             if (el) el.textContent = text;
         };
-        const isTakao = (MODEL === 'gaoxiong_7');
-        setElem('pm-title', isTakao ? t('propTitle') : t('propHoverGeneric'));
+        setElem('pm-title', t('propHoverGeneric'));
         setElem('pm-subtitle', t('propSubtitle'));
         setElem('pm-tab-exp', t('tabExp'));
         setElem('pm-tab-costumes', t('tabCostumes'));
@@ -969,48 +992,37 @@ const PropManager = {
         if (!list || !model) return;
         list.innerHTML = '';
         
-        const isTakao = (MODEL === 'gaoxiong_7');
         const cm = model.internalModel?.coreModel;
         const motions = model.internalModel?.settings?.motions || {};
         const motionKeys = Object.keys(motions);
 
         // 1. Poses / Motions
         let poses = [];
-        if (isTakao) {
-            poses = [
-                { act: 'touch_idle1', icon: '📸', vi: 'Ảnh casting 1 (Tạo dáng)', en: 'Casting Photo 1 (Posing)', tag: 'Photo Card' },
-                { act: 'touch_idle19', icon: '📷', vi: 'Ảnh casting 2 (Ngồi nhìn)', en: 'Casting Photo 2 (Sitting)', tag: 'Photo Card' },
-                { act: 'touch_idle17', icon: '👗', vi: 'Buổi chụp ảnh Studio', en: 'Studio Photoshoot Pose', tag: 'Session' },
-                { act: 'touch_idle34', icon: '🎬', vi: 'Diễn xuất trước gương', en: 'Studio Mirror Acting', tag: 'Acting' },
-                { act: 'idle', icon: '🔄', vi: 'Tư thế nghỉ cơ bản', en: 'Reset to Base Idle', tag: 'Base' }
-            ];
-        } else {
-            // Generic skin poses and motions
-            const poseMotions = motionKeys.filter(m => /^(touch_idle|touch_drag|idle\d|special|wedding|dance|swim|sleep)/i.test(m));
-            for (const act of poseMotions.slice(0, 10)) {
-                let icon = '📸';
-                let tag = 'Pose';
-                let vi = `Tư thế / Hoạt cảnh (${act})`;
-                let en = `Pose / Animation (${act})`;
-                if (/idle$/i.test(act)) { icon = '🔄'; tag = 'Base'; vi = 'Tư thế nghỉ cơ bản'; en = 'Reset to Base Idle'; }
-                else if (/wedding/i.test(act)) { icon = '💍'; tag = 'Oath'; vi = 'Lễ thề nguyện (Wedding)'; en = 'Oath Ceremony'; }
-                else if (/special/i.test(act)) { icon = '✨'; tag = 'Special'; vi = 'Phản ứng đặc biệt'; en = 'Special Reaction'; }
-                else if (/touch_idle/i.test(act)) {
-                    const num = act.replace(/\D/g, '');
-                    icon = '📸'; tag = 'Sequence';
-                    vi = `Dáng tương tác ${num || ''}`.trim();
-                    en = `Interactive Pose ${num || ''}`.trim();
-                } else if (/touch_drag/i.test(act)) {
-                    const num = act.replace(/\D/g, '');
-                    icon = '▶️'; tag = 'Drag';
-                    vi = `Bước chuyển động ${num || ''}`.trim();
-                    en = `Action Step ${num || ''}`.trim();
-                }
-                poses.push({ act, icon, tag, vi, en });
+        // Generic skin poses and motions
+        const poseMotions = motionKeys.filter(m => /^(touch_idle|touch_drag|idle\d|special|wedding|dance|swim|sleep)/i.test(m));
+        for (const act of poseMotions.slice(0, 10)) {
+            let icon = '📸';
+            let tag = 'Pose';
+            let vi = `Tư thế / Hoạt cảnh (${act})`;
+            let en = `Pose / Animation (${act})`;
+            if (/idle$/i.test(act)) { icon = '🔄'; tag = 'Base'; vi = 'Tư thế nghỉ cơ bản'; en = 'Reset to Base Idle'; }
+            else if (/wedding/i.test(act)) { icon = '💍'; tag = 'Oath'; vi = 'Lễ thề nguyện (Wedding)'; en = 'Oath Ceremony'; }
+            else if (/special/i.test(act)) { icon = '✨'; tag = 'Special'; vi = 'Phản ứng đặc biệt'; en = 'Special Reaction'; }
+            else if (/touch_idle/i.test(act)) {
+                const num = act.replace(/\D/g, '');
+                icon = '📸'; tag = 'Sequence';
+                vi = `Dáng tương tác ${num || ''}`.trim();
+                en = `Interactive Pose ${num || ''}`.trim();
+            } else if (/touch_drag/i.test(act)) {
+                const num = act.replace(/\D/g, '');
+                icon = '▶️'; tag = 'Drag';
+                vi = `Bước chuyển động ${num || ''}`.trim();
+                en = `Action Step ${num || ''}`.trim();
             }
-            if (!poses.some(p => p.act.toLowerCase() === 'idle') && motionKeys.some(m => m.toLowerCase() === 'idle')) {
-                poses.push({ act: 'idle', icon: '🔄', tag: 'Base', vi: 'Tư thế nghỉ cơ bản', en: 'Reset to Base Idle' });
-            }
+            poses.push({ act, icon, tag, vi, en });
+        }
+        if (!poses.some(p => p.act.toLowerCase() === 'idle') && motionKeys.some(m => m.toLowerCase() === 'idle')) {
+            poses.push({ act: 'idle', icon: '🔄', tag: 'Base', vi: 'Tư thế nghỉ cơ bản', en: 'Reset to Base Idle' });
         }
 
         for (const p of poses) {
@@ -1056,7 +1068,7 @@ const PropManager = {
                     { rx: /chair|table|bed|desk|sofa|yizi|zhuozi/i, icon: '🪑', vi: 'Bàn ghế / Nội thất', en: 'Furniture' },
                     { rx: /umbrella|phone|card|cup|bottle|drink|food|daoju/i, icon: '🌂', vi: 'Đạo cụ cầm tay', en: 'Held Prop' },
                     { rx: /board|screen|stand|deco/i, icon: '📋', vi: 'Bảng / Biển trang trí', en: 'Decor Board' },
-                    { rx: /manjuu|pet|cat|bird/i, icon: '🐥', vi: 'Thú cưng / Manjuu', en: 'Pet / Manjuu' },
+                    { rx: /mascot|pet|cat|bird/i, icon: '🐥', vi: 'Thú cưng / Linh vật', en: 'Pet / Mascot' },
                     { rx: /bg|back|front|beijing/i, icon: '🖼️', vi: 'Phông nền / Khung cảnh', en: 'Background / Scene' },
                     { rx: /rigging|weapon|gun|sword|shield/i, icon: '⚓', vi: 'Trang bị chiến hạm', en: 'Ship Rigging / Weapon' },
                 ];
@@ -1184,6 +1196,18 @@ function dragsLimitTimeMs(skins, part, action) {
     return Number.isFinite(lt) && lt > 0 ? Math.round(lt * 1000) : 1000;
 }
 
+function getIdleBlacklistedParts() {
+    const blacklisted = new Set();
+    if (currentSkins?.tips?.idleBlackList) {
+        for (const rule of currentSkins.tips.idleBlackList) {
+            if (rule.idle && rule.idle.includes(StateManager.currentState)) {
+                for (const p of (rule.parts || [])) blacklisted.add(p);
+            }
+        }
+    }
+    return blacklisted;
+}
+
 // nagami-parity counter: "N / M hotspots" counts drags zones only — the
 // synthesized assistant touch zones render badges but stay out of the count
 function updateHotspotCounter() {
@@ -1191,7 +1215,8 @@ function updateHotspotCounter() {
     if (!el) return;
     const total = engineZones ? engineZones.meta.total : hotspots.filter(h => h.index >= 0).length;
     if (!total) { el.hidden = true; return; }
-    const visible = hotspots.filter(h => h.zone && h.index >= 0 && h.badge.visible).length;
+    const blacklisted = getIdleBlacklistedParts();
+    const visible = hotspots.filter(h => h.zone && h.index >= 0 && !blacklisted.has(h.part)).length;
     el.textContent = `${visible} / ${total} hotspots`;
     el.hidden = false;
 }
@@ -1285,9 +1310,7 @@ function buildHotspots(skins) {
             });
         }
 
-        const resetAction = groups.find(m => m.toLowerCase() === 'touch_drag10') ||
-                            groups.find(m => m.toLowerCase() === 'touch_idle4') ||
-                            StateManager.baseIdleGroup;
+        const resetAction = StateManager.baseIdleGroup;
         hotspots.push({
             zone: null,
             action: resetAction,
@@ -1407,14 +1430,7 @@ function updateHotspots() {
     const anchorY = Math.max(80, Math.min(window.innerHeight - 80, model.y - 50));
 
     // Determine blacklisted parts for the current idle pose from skins.json (if defined)
-    const blacklisted = new Set();
-    if (currentSkins?.tips?.idleBlackList) {
-        for (const rule of currentSkins.tips.idleBlackList) {
-            if (rule.idle && rule.idle.includes(StateManager.currentState)) {
-                for (const p of (rule.parts || [])) blacklisted.add(p);
-            }
-        }
-    }
+    const blacklisted = getIdleBlacklistedParts();
 
     for (const h of hotspots) {
         h.isOffscreen = false;
@@ -1518,6 +1534,12 @@ function setupPointerEvents() {
             model.focus(e.clientX, e.clientY);
         }
         engineTriggers?.onEvent({ type: 'move', x: p.x, y: p.y, t: performance.now() }, null);
+        if (pendingParam && engineParams && !paramDragZone
+            && Math.hypot(p.x - pendingParam.x, p.y - pendingParam.y) > 4) {
+            engineParams.onDragStart(pendingParam.zone, pendingParam.x, pendingParam.y);
+            paramDragZone = pendingParam.zone;
+            paramDragLastT = performance.now();
+        }
         if (paramDragZone && engineParams) {
             const now = performance.now();
             engineParams.onDragMove(paramDragZone, p.x, p.y, now - paramDragLastT);
@@ -1551,11 +1573,10 @@ function setupPointerEvents() {
             // stay direct UI affordances
             if (h.zone) {
                 engineTriggers?.onEvent({ type: 'down', x: p.x, y: p.y, t: performance.now() }, h.zone);
-                // parameter-drag zones: the pointer writes the zone's param
+                // parameter-drag zones: arming is deferred until the pointer
+                // actually moves (a plain tap must not pin the param)
                 if (engineParams && (h.zone.param || (h.zone.trigger && h.zone.trigger.type === 13))) {
-                    engineParams.onDragStart(h.zone, p.x, p.y);
-                    paramDragZone = h.zone;
-                    paramDragLastT = performance.now();
+                    pendingParam = { zone: h.zone, x: p.x, y: p.y };
                 }
                 return;
             }
@@ -1574,6 +1595,10 @@ function setupPointerEvents() {
             return;
         }
         if (placementLocked) {
+            // The empty-canvas tap is an interaction too: it must respect the
+            // busy gate (a running animation+voice is never cut) exactly like
+            // zone clicks do.
+            if (interactionBusy()) return;
             // In locked mode: tapping on model advances sequence if in resting sequence
             if (StateManager.currentState > 0 && StateManager.activeSequence?.nextAction) {
                 StateManager.next();
@@ -1597,6 +1622,7 @@ function setupPointerEvents() {
             engineParams.onDragEnd(paramDragZone);
             paramDragZone = null;
         }
+        pendingParam = null;
         if (press && press.dragging) {
             canvas.style.cursor = hoveredHotspot ? 'pointer' : 'grab';
             saveView();
@@ -1830,6 +1856,14 @@ function unloadCurrent() {
     engineParams = null;
     engineLastAction = null;
     paramDragZone = null;
+    // cross-model state: a motion cut by the switch must not trigger a
+    // phantom camera restore or leak tick bookkeeping into the next model
+    motionWasPlaying = false;
+    motionWasPlayingGroup = null;
+    motionTouchedCamera.clear();
+    cameraRestore = null;
+    activeMotionSince = null;
+    lastTap = null;
     if (window.__mizu) window.__mizu.engine = null;
     if (model) {
         app.stage.removeChild(model);
@@ -1859,7 +1893,7 @@ async function loadWords(prefab) {
 async function loadModel(prefab) {
     const token = ++loadToken;
     const bgUrl = findBackgroundUrl(prefab);
-    const [loaded, skins, bgTexture, words] = await Promise.all([
+    const [loaded, skins, bgTexture, words, animatorFades] = await Promise.all([
         PIXI.live2d.Live2DModel.from(`assets/${prefab}/${prefab}.model3.json`, {
             autoInteract: false,
             autoUpdate: false,
@@ -1871,6 +1905,7 @@ async function loadModel(prefab) {
             return null;
         }) : null,
         loadWords(prefab),
+        loadAnimatorFades(prefab),
     ]);
     if (token !== loadToken) {
         loaded.destroy({ children: true, texture: true, baseTexture: true });
@@ -1882,7 +1917,7 @@ async function loadModel(prefab) {
     MODEL = prefab;
     history.replaceState(null, '', `?model=${prefab}`);
     model = loaded;
-    applyMotionLoopPolicy(model);
+    applyMotionLoopPolicy(model, animatorFades);
     currentSkins = skins;
     StateManager.init(skins);
     try {
@@ -1987,19 +2022,42 @@ function tick() {
     // camera heal themselves — this lerp is the safety net for the rest, and
     // it replaces the old per-skin "safety check" parameter list.
     trackMotionCameraTouch();
-    if (motionWasPlaying && !isPlayingMotion && motionTouchedCamera.size) {
-        const cm = model.internalModel.coreModel;
-        const ids = cm._model?.parameters?.ids;
-        if (ids) {
-            const start = new Map();
-            for (const name of motionTouchedCamera) {
-                const i = ids.indexOf(name);
-                if (i >= 0) start.set(i, cm.getParameterValueByIndex(i));
+    if (motionWasPlaying && !isPlayingMotion) {
+        const endedGroup = motionWasPlayingGroup;
+        if (motionTouchedCamera.size) {
+            const cm = model.internalModel.coreModel;
+            const ids = cm._model?.parameters?.ids;
+            if (ids) {
+                const start = new Map();
+                for (const name of motionTouchedCamera) {
+                    const i = ids.indexOf(name);
+                    if (i >= 0) start.set(i, cm.getParameterValueByIndex(i));
+                }
+                if (start.size) cameraRestore = { start, t0: t0 };
             }
-            if (start.size) cameraRestore = { start, t0: t0 };
+            motionTouchedCamera.clear();
         }
-        motionTouchedCamera.clear();
+        // Engine hooks on motion end: revert bookkeeping (pendingRevert) and
+        // type-5 removeComList visibility restoration.
+        if (engineState) {
+            engineState.onMotionEnded(endedGroup);
+            const pr = engineState.pendingRevert();
+            if (pr && model) model.internalModel.motionManager.groups.idle = pr.group;
+        }
+        applyRemoveComList(endedGroup, false);
     }
+    // type-10 animationPlay feed: normalized progress of the playing motion
+    if (isPlayingMotion && engineTriggers && activeMotionSince) {
+        const durMs = mm.__mizuDurations?.[activeMotionSince.group];
+        if (durMs) {
+            engineTriggers.setMotionProgress({
+                group: activeMotionSince.group,
+                index: mm.state.currentIndex,
+                normalized: Math.min(1, (t0 - activeMotionSince.t) / durMs),
+            });
+        }
+    }
+    motionWasPlayingGroup = isPlayingMotion ? mm.state.currentGroup : null;
     motionWasPlaying = isPlayingMotion;
     if (cameraRestore) {
         const cm = model.internalModel.coreModel;
@@ -2021,7 +2079,6 @@ function tick() {
     if (engineParams) {
         engineParams.tick(app.ticker.deltaMS);
         engineParams.applyRelations(t0);
-        window.__mizu.paramSnapshot = engineParams.snapshot();
     }
 
     // 3. Dynamic camera tracking with smooth 60fps interpolation
@@ -2178,11 +2235,14 @@ async function main() {
         get view() { return { ...view }; },
         toggleTips: () => tipsToggle.click(),
         resetView: () => resetView(),
+        get paramSnapshot() { return engineParams ? engineParams.snapshot() : null; },
     };
     [catalog, placementIndex] = await Promise.all([loadCatalog(), loadPlacementIndex()]);
     if (window.MizuDialogue) {
         dialogue = window.MizuDialogue.init({ settings: loadSettings(), onChange: saveSettings });
         window.__mizu.dialogue = dialogue;
+        // chatter consults the interaction gate so it never cuts a running line
+        window.__mizuBusy = () => interactionBusy();
     }
     setupPointerEvents();
     PropManager.init();

@@ -18,6 +18,7 @@ const RUNS = [
     { ac: 'AC-4.1 drift+reset (gaoxiong_7)', cmd: ['p0_drift.mjs', 'gaoxiong_7', '2'] },
     { ac: 'AC-5.1/5.2/5.3/5.7/5.8 engine (antu_2+)', cmd: ['p1_engine.mjs', 'all'] },
     { ac: 'AC-5.4 param drags + AC-5.5 xiaqi cells', cmd: ['p1_drag.mjs', 'all'] },
+    { ac: 'Review Focus 5 model switch resets engine state', cmd: ['p1_switch.mjs'] },
 ];
 
 let failed = 0;
@@ -27,7 +28,10 @@ for (const r of RUNS) {
         encoding: 'utf8', timeout: 420000,
     });
     const ok = proc.status === 0;
-    if (!ok) failed++;
+    if (!ok) {
+        failed++;
+        console.error(`=== FAILURE OUTPUT FOR ${r.ac} ===\n${proc.stdout}\n${proc.stderr}\n=== END ===`);
+    }
     results.push({ ac: r.ac, ok, tail: (proc.stdout || '').trim().split('\n').filter(Boolean).pop() ?? (proc.stderr || '').trim().split('\n').pop() ?? '' });
     console.log(`${ok ? 'PASS' : 'FAIL'} ${r.ac}`);
 }

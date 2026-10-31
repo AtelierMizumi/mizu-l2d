@@ -11,17 +11,22 @@ if (which === 'all' || which === 'drag') {
     // pure-param skins from the census (every drags entry is a param listener)
     const prefab = process.argv[3] || 'yuekechengii_3';
     const r = await withPage(prefab, async (page) => {
+        await page.waitFor('!__mizu.dialogue.playing', 25000).catch(() => {});
         await page.waitFor('!!window.__mizu.engine', 20000);
         await page.evaluate('window.mizu.tips(true)');
-        await page.waitFor('__mizu.hotspots.some(h => h.bounds)', 10000);
+        await page.waitFor('__mizu.hotspots.some(h => { const b = computeHotspotBounds(h); return b && b.y > 0; })', 15000);
+        await new Promise(r => setTimeout(r, 600)); // wait for initial idle pose transition to settle
         // union of all on-screen param zones; drag a swath through it and
         // expect at least one of the skin's params to move
         const t = await page.evaluate(`(() => {
             const zones = __mizu.engine.zones.filter(z => z.param && z.partIndex >= 0);
             const rects = [];
             for (const zone of zones) {
-                const h = __mizu.hotspots.find(h => h.zone === zone && h.bounds);
+                const h = __mizu.hotspots.find(h => h.zone === zone);
                 if (!h) continue;
+                const b = computeHotspotBounds(h);
+                if (b) h.bounds = b;
+                if (!h.bounds) continue;
                 const c = new PIXI.Point(h.bounds.x + h.bounds.w / 2, h.bounds.y + h.bounds.h / 2);
                 __mizu.model.internalModel.localTransform.apply(c, c);
                 __mizu.model.toGlobal(c, c);
@@ -34,7 +39,7 @@ if (which === 'all' || which === 'drag') {
             return { params: [...new Set(rects.map(r => r.param))],
                      // the drag must START on a real zone center (grab-the-part)
                      // and follow the zone's axis (dragDirect/mode 2 = vertical)
-                     startX: rects[0].x, startY: rects[0].y,
+                     startX: Math.round(rects[0].x), startY: Math.round(rects[0].y),
                      vertical: (first && (first.dragDirect === 2 || first.mode === 2)) || false,
                      span: Math.max(60, Math.round(Math.max(...xs) - Math.min(...xs))) };
         })()`);

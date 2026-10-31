@@ -11,7 +11,7 @@ Popup cross-check set (owner, 2026-10-31): antu_2 (Azuchi elevator — primary),
 
 ## Done (verified)
 - Interaction parity (owner-approved docs/PARITY-SPEC.md, executed via docs/PARITY-PLAN.md; all on
-  branch `feat/interaction-parity`, AC sweep `node tests/probe/run-all.mjs` = 10/10 PASS,
+  branch `feat/interaction-parity`, AC sweep `node tests/probe/run-all.mjs` = 11/11 PASS,
   unit `node --test tests/unit/` = 48/48):
   - P0-1 hit-testing no longer depends on the tips overlay (bounds computed lazily/per-tick
     independently; tips is a visual layer only). Probe: tips-OFF clicks fire identical zones on
@@ -34,14 +34,33 @@ Popup cross-check set (owner, 2026-10-31): antu_2 (Azuchi elevator — primary),
     bands, idle-pose state machine with reactCondition/ignore/enable gating. Wired into main.js:
     zone badges from data, "N / M hotspots" counter (nagami parity, M = drags.length), markers
     muted while playing, Touch* synthesis stays additive for the assistant touch parts.
+  - Review Fix Pass:
+    - Busy gate on empty canvas and idle chatter: empty canvas click inside pointerdown and dialogue
+      chatterNow() respect interactionBusy() so running animation+voice is never cut.
+    - Wired engine features in main.js: onMotionEnded + pendingRevert (revertIdle pose restores),
+      applyRemoveComList (type-5 part opacities), actionIndex (relations 103 sequence position),
+      and setMotionProgress (type-10 animationPlay progress tracking).
+    - animator.json fades: loadAnimatorFades applied to motion setFadeInTime on entry.
+    - Hardcode removal & grep gate: regex bug `!/regex/` fixed in p1_engine.mjs (AC-5.8); Takao-specific
+      branching and hardcoded keywords removed from PropManager; 0 engine hardcodes remaining.
+    - Identity assertions: p0_tips_off.mjs re-measures live mesh bounds per zone across animated pose
+      shifts and asserts exact action identity on sparse skins (gaoxiong_7 3/3 exact PASS).
+    - Cross-model cleanup & probe: unloadCurrent clears all tick/camera bookkeeping and lastTap;
+      new p1_switch.mjs probe pins clean reset when switching models (Review Focus 5).
+    - StateManager reset & GC optimization: eliminated speculative touch_drag10/idle4 motion guesses
+      in StateManager.reset() so models cleanly revert to baseIdleGroup without mesh distortion (antu_2 4/4 PASS);
+      converted paramSnapshot to an on-demand getter on window.__mizu, removing all per-frame allocations from tick.
+    - Test harness stability: added recursive profile cleanup to cdp.mjs to prevent /tmp disk exhaustion,
+      and port 8787 exit synchronization in _env.mjs.
   - Evidence: antu_2 elevator — clicking the floor panel fires touch_idle1 and switches the idle
     pose (state 1, sequence chained), status/dialogue match nagami; AC-5.4 param drags verified on
     beianpudunii_2 + yuekechengii_3; census (`scripts/census.mjs`) 239 prefabs / 3876 drags /
-    0 mismatches vs index.json.
+    0 mismatches vs index.json; AC sweep `node tests/probe/run-all.mjs` = 11/11 PASS.
   - Known limitations (documented): effect motion layer not stacked (single motion manager,
     minified bundle); xiaqi live board summon is game-UI flow, not drags data (engine level
-    unit-tested); paraRange focus clamp + dragRate gaze scaling deferred (next unit); some drags
-    ignore[] gates keep zones silent at rest — verified as game-accurate.
+    unit-tested); paraRange focus clamp + dragRate gaze scaling deferred (next unit); animWhiteList
+    and Guide-vs-Hitboxes marker modes deferred (counter, idleBlackList, and muted-while-playing active);
+    some drags ignore[] gates keep zones silent at rest — verified as game-accurate.
   - P2-6a Spine spike: docs/SPINE-SPIKE.md (GO; 225-entry catalog; pixi-spine 3.1.2 UMD; license
     gate needs owner decision before 6b/6c).
 - R2b.3 (partially done): `wall/mizu-l2d-wall.py` reads `[wall] model` from config.toml

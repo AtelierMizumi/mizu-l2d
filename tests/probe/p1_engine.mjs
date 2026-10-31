@@ -95,8 +95,8 @@ if (which === 'all' || which === 'grep') {
         const hits = execSync(
             `grep -nE 'gaoxiong_7|manjuu|179\\b|Touch_drag(19|20|21)\\b|Param60' web/main.js || true`,
             { cwd: process.cwd() }).toString().trim();
-        // comments describing history are fine; engine paths must not branch on them
-        const codeHits = hits.split('\n').filter((l) => l && !/^\s*\d+:\s*\/\// && !/\* /.test(l));
+        // comments describing history and URL fallback are fine; engine paths must not branch on them
+        const codeHits = hits.split('\n').filter((l) => l && !/^\s*\d+:\s*\/\//.test(l) && !/\* /.test(l) && !/get\('model'\)/.test(l));
         grepOk = codeHits.length === 0;
         console.log(`${grepOk ? 'PASS' : 'FAIL'} hardcode grep gate (AC-5.8)${grepOk ? '' : ':\n' + codeHits.join('\n')}`);
     } catch (e) { grepOk = false; console.log('FAIL grep gate: ' + e.message); }

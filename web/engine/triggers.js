@@ -335,7 +335,7 @@
                 }
             }
             // 3. type-13 deltas accumulated since the previous tick
-            frameDrags = [];
+            if (frameDrags.length) frameDrags = [];
             for (const [z, r] of rt) {
                 if (r.drag && (r.drag.dx !== 0 || r.drag.dy !== 0)) {
                     frameDrags.push({

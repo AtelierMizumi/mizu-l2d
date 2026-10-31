@@ -41,7 +41,7 @@ const report = await withPage(prefab, async (page) => {
                      onscreen: c.x >= 0 && c.y >= 0 && c.x < innerWidth && c.y < innerHeight }; })`)
         .then(list => list.filter(z => z.onscreen));
     const head = zones.find(z => z.action === 'touch_head') || zones[0];
-    const other = zones.find(z => z.action !== head.action);
+    const other = zones.find(z => z.action === 'touch_body') || zones.find(z => z.action !== head.action);
     if (!head || !other) throw new Error('need two distinct click-type zones on screen');
 
     await page.click(head.x, head.y);
@@ -54,23 +54,15 @@ const report = await withPage(prefab, async (page) => {
     await page.waitFor(`(() => { const mm = __mizu.model.internalModel.motionManager;
         const idle = mm.state.currentGroup === undefined || mm.state.currentGroup === mm.groups.idle;
         return idle && performance.now() >= (__mizu.dialogue ? (__mizu.dialogue.busyUntil ?? 0) : 0); })()`, 40000);
+    await new Promise(r => setTimeout(r, 600)); // settling time
     // the interaction may have moved the pose: re-measure the second zone
     // before the post-busy click
     const otherNow = await page.evaluate(`(() => {
-        const h = __mizu.hotspots.find(h => h.action === '${other.action}' && h.index >= 0);
+        const h = __mizu.hotspots.find(h => h.action === '${other.action}' && (h.index >= 0 || h.meshIndices));
         if (!h) return null;
-        // one lazy bounds pass via the same hit-test path a click would take
-        if (!h.bounds) {
-            const cm = __mizu.model.internalModel;
-            const verts = cm.getDrawableVertices(h.index);
-            if (!verts) return null;
-            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-            for (let i = 0; i < verts.length; i += 2) {
-                if (verts[i] < minX) minX = verts[i]; if (verts[i] > maxX) maxX = verts[i];
-                if (verts[i + 1] < minY) minY = verts[i + 1]; if (verts[i + 1] > maxY) maxY = verts[i + 1];
-            }
-            h.bounds = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
-        }
+        const b = computeHotspotBounds(h);
+        if (b) h.bounds = b;
+        if (!h.bounds) return null;
         const c = new PIXI.Point(h.bounds.x + h.bounds.w / 2, h.bounds.y + h.bounds.h / 2);
         __mizu.model.internalModel.localTransform.apply(c, c);
         __mizu.model.toGlobal(c, c);
@@ -78,7 +70,7 @@ const report = await withPage(prefab, async (page) => {
     })()`);
     if (otherNow) { other.x = otherNow.x; other.y = otherNow.y; }
     await page.click(other.x, other.y);
-    await new Promise(r => setTimeout(r, 300));
+    await page.waitFor('window.__busy && window.__busy.fired.length > 1', 5000).catch(() => {});
     const after = await page.evaluate('JSON.stringify(window.__busy)');
     return { during: JSON.parse(during), after: JSON.parse(after), head: head.action, other: other.action };
 });

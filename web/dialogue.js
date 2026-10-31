@@ -311,6 +311,8 @@
     // random pick that never repeats the previous chatter line
     function chatterNow() {
         const now = Date.now();
+        // a running interaction animation+voice is never cut by chatter
+        if (typeof window.__mizuBusy === 'function' && window.__mizuBusy()) return false;
         // Prevent multi-screen collision: ensure at least 30s between idle chatter across all screens
         try {
             const lastSharedChatter = parseInt(localStorage.getItem('mizu_shared_chatter_ts') || '0', 10);

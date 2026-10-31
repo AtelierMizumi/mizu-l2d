@@ -40,27 +40,66 @@ if (!targets.length) { console.error('FAIL: no on-screen click zones measured fo
 //    Between clicks, wait for the busy gate to release (P0-2: a playing
 //    animation+voice correctly swallows further triggers).
 const results = await withPage(prefab, async (page) => {
+    await page.waitFor('!__mizu.dialogue.playing', 25000).catch(() => {});
     const out = [];
     const idleExpr = `(() => { const mm = __mizu.model.internalModel.motionManager;
         return (mm.state.currentGroup === undefined || mm.state.currentGroup === mm.groups.idle)
             && performance.now() >= (__mizu.dialogue ? (__mizu.dialogue.busyUntil ?? 0) : 0); })()`;
     for (const z of targets) {
         await page.waitFor(idleExpr, 40000).catch(() => {});
-        await page.click(z.x, z.y);
+        const didReset = await page.evaluate(`(() => {
+            if (StateManager.currentState !== 0) {
+                StateManager.reset();
+                return true;
+            }
+            return false;
+        })()`);
+        if (didReset) {
+            await new Promise(r => setTimeout(r, 600));
+            await page.waitFor(idleExpr, 40000).catch(() => {});
+        }
+        // Re-measure zone position from live mesh bounds so animated pose shifts
+        // don't leave the click targeting a stale pixel (identical to p0_busy.mjs)
+        await page.waitFor(`(() => {
+            const h = __mizu.hotspots.find(h => h.action === '${z.action}' && (h.index >= 0 || h.meshIndices));
+            if (!h) return false;
+            const b = computeHotspotBounds(h);
+            if (!b) return false;
+            const c = new PIXI.Point(b.x + b.w / 2, b.y + b.h / 2);
+            __mizu.model.internalModel.localTransform.apply(c, c);
+            __mizu.model.toGlobal(c, c);
+            return c.y >= 0 && c.y < innerHeight;
+        })()`, 5000).catch(() => {});
+        const pt = await page.evaluate(`(() => {
+            const h = __mizu.hotspots.find(h => h.action === '${z.action}' && (h.index >= 0 || h.meshIndices));
+            if (!h) return null;
+            const b = computeHotspotBounds(h);
+            if (b) h.bounds = b;
+            if (!h.bounds) return null;
+            const c = new PIXI.Point(h.bounds.x + h.bounds.w / 2, h.bounds.y + h.bounds.h / 2);
+            __mizu.model.internalModel.localTransform.apply(c, c);
+            __mizu.model.toGlobal(c, c);
+            return { x: Math.round(c.x), y: Math.round(c.y) };
+        })()`);
+        const clickX = pt?.x ?? z.x;
+        const clickY = pt?.y ?? z.y;
+        const expectedAction = await page.evaluate(`findHotspotAtPoint({ x: ${clickX}, y: ${clickY} })?.action`);
+        await page.click(clickX, clickY);
         await new Promise(r => setTimeout(r, 300)); // 0.1 s fire delay + status refresh
         const st = await page.evaluate('window.mizu.status()');
         const parsed = JSON.parse(st);
-        out.push({ action: z.action, clicked: { x: z.x, y: z.y }, lastTap: parsed.lastTap, tips: parsed.tips });
+        out.push({ action: z.action, expectedAction, clicked: { x: clickX, y: clickY }, lastTap: parsed.lastTap, tips: parsed.tips });
     }
     return out;
 });
 
 let pass = true;
 for (const r of results) {
-    // on dense skins another zone's (smaller) bbox may legally cover the same
-    // pixel — the AC is that tips-OFF clicks fire zones, exact identity only
-    // when no overlap won
-    const ok = r.lastTap === r.action || (r.lastTap !== null && r.lastTap !== undefined);
+    // Identity assertion (AC-1.1): sparse skins (gaoxiong_7) must match the zone
+    // action exactly; dense skins allow legal coverage by a winning overlapping zone
+    const ok = (prefab === 'gaoxiong_7')
+        ? (r.lastTap === r.action)
+        : (r.lastTap === r.action || (r.lastTap != null && r.lastTap === r.expectedAction));
     if (!ok) pass = false;
     console.log(`${ok ? 'PASS' : 'FAIL'} zone ${r.action} @(${r.clicked.x},${r.clicked.y}) tips=${r.tips} lastTap=${r.lastTap}`);
 }

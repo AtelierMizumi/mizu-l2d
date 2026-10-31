@@ -2,7 +2,7 @@
 // Drives a Chromium-family browser in headless mode over the DevTools
 // websocket (Node >= 22 stable WebSocket). Used by tests/probe/run-all.mjs.
 import { spawn, execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -138,6 +138,7 @@ export async function launch({ url, width = 1280, height = 800 } = {}) {
             try { await send('Browser.close'); } catch { /* socket may drop first */ }
             ws.close();
             proc.kill('SIGKILL');
+            try { rmSync(profile, { recursive: true, force: true }); } catch { /* ignore */ }
         },
     };
     return page;

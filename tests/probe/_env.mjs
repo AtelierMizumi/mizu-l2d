@@ -33,6 +33,11 @@ export async function withPage(prefab, fn, { port = 8787 } = {}) {
     } finally {
         if (page) await page.close().catch(() => {});
         server.kill('SIGTERM');
+        await new Promise(r => {
+            if (server.exitCode !== null) return r();
+            server.once('exit', () => r());
+            setTimeout(r, 1000);
+        });
     }
 }
 
