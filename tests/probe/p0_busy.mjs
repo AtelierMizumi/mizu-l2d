@@ -32,14 +32,17 @@ const report = await withPage(prefab, async (page) => {
     await page.evaluate('window.mizu.tips(true)');
     await page.waitFor('__mizu.hotspots.some(h => h.bounds)', 10000);
     const zones = await page.evaluate(`__mizu.hotspots
-        .filter(h => h.bounds && h.index >= 0 && !h.isProp)
+        .filter(h => h.bounds && h.index >= 0 && h.action && (!h.zone || [2, 6].includes(h.zone.trigger.type)))
+        .filter(h => !h.zone || __mizu.engine.canFire(h.zone)) // game-gated zones stay silent at rest
         .map(h => { const c = new PIXI.Point(h.bounds.x + h.bounds.w / 2, h.bounds.y + h.bounds.h / 2);
             __mizu.model.internalModel.localTransform.apply(c, c);
             __mizu.model.toGlobal(c, c);
-            return { action: h.action, x: Math.round(c.x), y: Math.round(c.y) }; })`);
+            return { action: h.action, part: h.part, x: Math.round(c.x), y: Math.round(c.y),
+                     onscreen: c.x >= 0 && c.y >= 0 && c.x < innerWidth && c.y < innerHeight }; })`)
+        .then(list => list.filter(z => z.onscreen));
     const head = zones.find(z => z.action === 'touch_head') || zones[0];
     const other = zones.find(z => z.action !== head.action);
-    if (!head || !other) throw new Error('need two distinct mesh zones');
+    if (!head || !other) throw new Error('need two distinct click-type zones on screen');
 
     await page.click(head.x, head.y);
     await new Promise(r => setTimeout(r, 200)); // inside the busy window
@@ -51,6 +54,29 @@ const report = await withPage(prefab, async (page) => {
     await page.waitFor(`(() => { const mm = __mizu.model.internalModel.motionManager;
         const idle = mm.state.currentGroup === undefined || mm.state.currentGroup === mm.groups.idle;
         return idle && performance.now() >= (__mizu.dialogue ? (__mizu.dialogue.busyUntil ?? 0) : 0); })()`, 40000);
+    // the interaction may have moved the pose: re-measure the second zone
+    // before the post-busy click
+    const otherNow = await page.evaluate(`(() => {
+        const h = __mizu.hotspots.find(h => h.action === '${other.action}' && h.index >= 0);
+        if (!h) return null;
+        // one lazy bounds pass via the same hit-test path a click would take
+        if (!h.bounds) {
+            const cm = __mizu.model.internalModel;
+            const verts = cm.getDrawableVertices(h.index);
+            if (!verts) return null;
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            for (let i = 0; i < verts.length; i += 2) {
+                if (verts[i] < minX) minX = verts[i]; if (verts[i] > maxX) maxX = verts[i];
+                if (verts[i + 1] < minY) minY = verts[i + 1]; if (verts[i + 1] > maxY) maxY = verts[i + 1];
+            }
+            h.bounds = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+        }
+        const c = new PIXI.Point(h.bounds.x + h.bounds.w / 2, h.bounds.y + h.bounds.h / 2);
+        __mizu.model.internalModel.localTransform.apply(c, c);
+        __mizu.model.toGlobal(c, c);
+        return { x: Math.round(c.x), y: Math.round(c.y) };
+    })()`);
+    if (otherNow) { other.x = otherNow.x; other.y = otherNow.y; }
     await page.click(other.x, other.y);
     await new Promise(r => setTimeout(r, 300));
     const after = await page.evaluate('JSON.stringify(window.__busy)');

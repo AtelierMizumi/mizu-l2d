@@ -160,6 +160,13 @@
     input:checked + .slider:before { transform: translateX(16px); }
 
     /* Right dock buttons */
+    #hotspot-counter {
+      top: 14px; right: 14px; bottom: auto; width: auto; min-width: 40px; height: 28px; padding: 0 12px;
+      display: flex; align-items: center; cursor: default; pointer-events: none;
+      color: #e2e8f0; font: 600 11px system-ui, sans-serif; white-space: nowrap;
+    }
+    body.wall #hotspot-counter { display: none; }
+    #hotspot-counter[hidden] { display: none; }
     #tips-toggle { right: 14px; }
     #tips-toggle .lens-text { fill: #fff; font: 700 9px system-ui, sans-serif; text-anchor: middle; }
     #tips-toggle .handle { stroke: rgba(255, 255, 255, .85); stroke-width: 2.6; stroke-linecap: round; }
@@ -545,6 +552,9 @@
   </div>
 
   <!-- Right Floating Dock -->
+  <!-- Hotspot counter (nagami parity: "N / M hotspots") -->
+  <div id="hotspot-counter" class="glass-btn" hidden></div>
+
   <!-- Tips toggle button -->
   <button id="tips-toggle" class="glass-btn" type="button" aria-pressed="false" title="Gợi ý tương tác L2D">
     <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
@@ -636,6 +646,10 @@
   <script src="vendor/pixi-live2d-display.min.js"></script>
   <script src="dialogue.js"></script>
   <script src="picker.js"></script>
+  <script src="engine/zones.js"></script>
+  <script src="engine/triggers.js"></script>
+  <script src="engine/params.js"></script>
+  <script src="engine/state.js"></script>
   <script src="main.js"></script>
 </body>
 </html>

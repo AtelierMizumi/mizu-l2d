@@ -379,6 +379,123 @@ function setLock(locked, save = true) {
 
 let currentSkins = null;
 
+// ---------- interaction engine (PARITY-PLAN Task 10) ----------
+// The drags[] engine owns pose bookkeeping, trigger recognition and parameter
+// writes; StateManager becomes a thin motion facade over it.
+let engineZones = null;     // { zones, paramListeners, meta, fallbackUsed }
+let engineState = null;     // idle-pose state machine
+let engineTriggers = null;  // pointer recognition + gating
+let engineParams = null;    // param writer (pointer routing lands in Task 11)
+let engineLastAction = null;
+
+function readParam(name) {
+    if (!model || !name) return 0;
+    const cm = model.internalModel.coreModel;
+    const ids = cm?._model?.parameters?.ids;
+    const i = ids ? ids.indexOf(name) : -1;
+    return i >= 0 ? cm.getParameterValueByIndex(i) : 0;
+}
+
+function writeParam(name, v) {
+    if (!model || !name) return;
+    const cm = model.internalModel.coreModel;
+    const ids = cm?._model?.parameters?.ids;
+    const i = ids ? ids.indexOf(name) : -1;
+    if (i >= 0) cm.setParameterValueByIndex(i, v);
+}
+
+function readParamDefault(name) {
+    if (!model || !name) return 0;
+    const cm = model.internalModel.coreModel;
+    const ids = cm?._model?.parameters?.ids;
+    const defs = cm?._model?.parameters?.defaultValues;
+    const i = ids ? ids.indexOf(name) : -1;
+    return i >= 0 ? defs[i] : 0;
+}
+
+function setPartOpacityByName(name, v) {
+    if (!model || !name) return;
+    const parts = model.internalModel.coreModel?._model?.parts;
+    if (!parts) return;
+    const i = parts.ids.indexOf(name);
+    if (i >= 0) model.internalModel.coreModel.setPartOpacityByIndex(i, v);
+}
+
+// The engine's fire callback: dialogue + motion through the StateManager
+// facade (which consults the state engine for the pose switch).
+function engineFire(zone, action) {
+    void zone;
+    if (!action) return;
+    lastTap = action;
+    engineLastAction = action;
+    const lineKey = window.MizuDialogue?.keyForAction(action);
+    if (lineKey) dialogue?.say(lineKey);
+    StateManager.playAction(action);
+}
+
+function setupInteractionEngine(skins) {
+    const drawableIds = model.internalModel.getDrawableIDs();
+    const motionGroups = Object.keys(model.internalModel.settings.motions || {});
+    const flags = placementIndex && placementIndex.skins ? placementIndex.skins[MODEL] : undefined;
+    const reg = window.MizuEngine.buildZones({ skins, flags, drawableIds, motionGroups });
+    engineZones = { ...reg, fallbackUsed: reg.zones.length === 0 };
+    const allZones = [...reg.zones, ...reg.paramListeners];
+
+    engineState = window.MizuEngine.createStateEngine({
+        zones: allZones,
+        idleMotions: StateManager.idleMotions,
+        ctx: {
+            // low-level hooks only — StateManager orchestrates the facade
+            playMotion(group) { if (model) model.motion(group, 0, 3); },
+            setIdleGroup(group) { if (model) model.internalModel.motionManager.groups.idle = group; },
+            playingGroup() { return model ? model.internalModel.motionManager.state.currentGroup : undefined; },
+            now: () => performance.now(),
+        },
+    });
+
+    engineTriggers = window.MizuEngine.createTriggerEngine({
+        zones: reg.zones,
+        ctx: {
+            paramValue: readParam,
+            // motion + interaction-voice window both read as busy; type-6
+            // zones bypass inside the engine (spec decision 1)
+            isMotionPlaying: () => interactionBusy(),
+            canFire: (zone) => (engineState ? engineState.canFire(zone) : true),
+            now: () => performance.now(),
+            fire: engineFire,
+        },
+    });
+
+    engineParams = window.MizuEngine.createParamEngine({
+        zones: allZones,
+        core: {
+            getParam: readParam,
+            setParam: writeParam,
+            defaultValue: readParamDefault,
+            setPartOpacity: setPartOpacityByName,
+        },
+        ctx: {
+            now: () => performance.now(),
+            setIdleByIndex: (n) => StateManager.setState(n),
+            actionIndex: () => -1, // actionList step tracking arrives with Task 11
+        },
+    });
+
+    if (engineZones.fallbackUsed) {
+        console.log('[mizu-engine] no drags zones resolved; Touch* fallback active for', MODEL);
+    }
+
+    window.__mizu.engine = {
+        get zones() { return engineZones ? engineZones.zones : []; },
+        get paramOnly() { return engineZones ? engineZones.paramListeners.length : 0; },
+        get total() { return engineZones ? engineZones.meta.total : 0; },
+        get fallbackUsed() { return !!(engineZones && engineZones.fallbackUsed); },
+        state: () => (engineState ? engineState.describe() : null),
+        get lastAction() { return engineLastAction; },
+        canFire: (zone) => (engineState ? engineState.canFire(zone) : true),
+    };
+}
+
 // One-shot enforcement bookkeeping: { group, t } for the currently playing
 // non-idle motion (see the tick watchdog).
 let activeMotionSince = null;
@@ -473,10 +590,8 @@ const StateManager = {
     currentState: 0,
     currentIdleGroup: 'idle',
     baseIdleGroup: 'idle',
-    activeSequence: null, // { prefix, step, action, nextAction, targetIdle }
-    transitions: new Map(), // action.toLowerCase() -> { targetIdle, part, action, nextAction, prevAction }
+    activeSequence: null, // mirrored from the interaction engine
     idleMotions: new Map(), // stateIndex -> motionGroupName
-    actionOffsets: new Map(), // action.toLowerCase() -> { x, y }
     currentSequenceOffset: { x: 0, y: 0 },
 
     getSequenceOffset() {
@@ -493,15 +608,10 @@ const StateManager = {
     },
 
     init(skins) {
+        void skins;
         this.currentState = 0;
         this.activeSequence = null;
         this.currentSequenceOffset = { x: 0, y: 0 };
-        this.transitions.clear();
-        this.idleMotions.clear();
-        this.actionOffsets.clear();
-        this.currentState = 0;
-        this.activeSequence = null;
-        this.transitions.clear();
         this.idleMotions.clear();
 
         const motions = Object.keys(model?.internalModel?.settings?.motions || {});
@@ -525,48 +635,9 @@ const StateManager = {
         }
 
         if (skins && Array.isArray(skins.drags)) {
-            for (const d of skins.drags) {
-                const act = d.trigger?.action || (d.part && motions.includes(d.part.toLowerCase()) ? d.part.toLowerCase() : null);
-                if (act && d.idle !== undefined) {
-                    this.transitions.set(act.toLowerCase(), {
-                        targetIdle: d.idle,
-                        part: d.part,
-                        action: act,
-                        ignore: d.ignore || [],
-                        enable: d.enable || []
-                    });
-                }
-                if (act && (d.offsetX !== undefined || d.offsetY !== undefined)) {
-                    this.actionOffsets.set(act.toLowerCase(), {
-                        x: d.offsetX || 0,
-                        y: d.offsetY || 0
-                    });
-                }
-            }
-        }
-
-        const seqPrefixes = ['touch_drag', 'touch_idle'];
-        for (const prefix of seqPrefixes) {
-            const list = motions.filter(m => new RegExp(`^${prefix}\\d+$`, 'i').test(m)).sort((a,b) => {
-                const na = parseInt(a.replace(/\D/g, ''), 10);
-                const nb = parseInt(b.replace(/\D/g, ''), 10);
-                return na - nb;
-            });
-            for (let i = 0; i < list.length; i++) {
-                const act = list[i];
-                const actLower = act.toLowerCase();
-                const nextAct = i < list.length - 1 ? list[i + 1] : null;
-                const prevAct = i > 0 ? list[i - 1] : null;
-                let trans = this.transitions.get(actLower);
-                if (!trans) {
-                    const num = parseInt(act.replace(/\D/g, ''), 10);
-                    const targetIdle = (i === list.length - 1) ? 0 : (this.idleMotions.has(num) ? num : (this.idleMotions.has(31 + num) ? 31 + num : 0));
-                    trans = { targetIdle, action: act, part: act };
-                    this.transitions.set(actLower, trans);
-                }
-                trans.nextAction = nextAct;
-                trans.prevAction = prevAct;
-            }
+            // pose bookkeeping lives in the interaction engine; init only keeps
+            // the idle-group synthesis (above) and the runtime idle pointer
+            void skins;
         }
 
         if (model) {
@@ -575,71 +646,33 @@ const StateManager = {
         this.updateUi();
     },
 
+    // Mirror the engine's pose state onto the facade fields the rest of the
+    // file (tick, UI, ctl status) reads.
+    syncFromEngineState() {
+        if (!engineState || !model) return;
+        const d = engineState.describe();
+        this.currentState = d.state;
+        this.currentIdleGroup = d.idleGroup;
+        this.currentSequenceOffset = d.offset;
+        this.activeSequence = d.sequence;
+        model.internalModel.motionManager.groups.idle = d.idleGroup;
+    },
+
     playAction(action) {
         touchActivity();
         if (!model) return false;
         const actLower = action.toLowerCase();
-        const trans = this.transitions.get(actLower);
 
-        if (trans && trans.targetIdle !== undefined) {
-            const targetIdle = trans.targetIdle;
-            this.currentState = targetIdle;
-            let idleGroup = this.baseIdleGroup;
-            if (targetIdle > 0) {
-                idleGroup = this.idleMotions.get(targetIdle) || `idle${targetIdle}`;
-                const motions = Object.keys(model.internalModel.settings.motions || {});
-                if (!motions.includes(idleGroup)) {
-                    if (motions.includes(`touch_idle${targetIdle}`)) {
-                        idleGroup = `touch_idle${targetIdle}`;
-                    } else if (motions.includes(action)) {
-                        idleGroup = action;
-                    } else {
-                        idleGroup = this.baseIdleGroup;
-                    }
-                }
-            }
-            this.currentIdleGroup = idleGroup;
-            model.internalModel.motionManager.groups.idle = idleGroup;
-
-            const match = actLower.match(/^([a-z_]+?)(\d+)$/);
-            this.activeSequence = {
-                prefix: match ? match[1] : 'custom',
-                step: match ? parseInt(match[2], 10) : 1,
-                action: action,
-                nextAction: trans.nextAction,
-                targetIdle: targetIdle
-            };
-
-            if (targetIdle === 0) {
-                this.currentSequenceOffset = { x: 0, y: 0 };
-            } else {
-                this.currentSequenceOffset = this.actionOffsets.get(actLower) || { x: 0, y: 0 };
-            }
-
-            console.log('[mizu-state] Transitioned via', action, '-> state:', targetIdle, 'idleGroup:', idleGroup, 'offset:', this.currentSequenceOffset, 'next:', trans.nextAction);
-        } else {
-            // Keep current resting idle pose so transient reactions do not kill the state
-            // — unless the action IS a pose group: playing one directly (locked-tap
-            // advance, ctl motion, a sequence step without its own transition) settles
-            // into that pose (game parity) and must promote it, or the busy gate
-            // would wait forever on a looping motion that idle never replaces.
-            const poseMatch = /^(idle\d*|touch_idle\d+)$/i.exec(actLower);
-            const authored = poseMatch && Object.keys(model.internalModel.settings.motions || {})
-                .find(g => g.toLowerCase() === actLower);
-            if (authored && authored !== this.currentIdleGroup) {
-                this.currentIdleGroup = authored;
-                this.activeSequence = null;
-                const n = poseMatch[1];
-                if (n !== undefined && n !== '') {
-                    this.currentState = parseInt(n, 10);
-                    this.idleMotions.set(this.currentState, authored);
-                }
-                this.currentSequenceOffset = this.actionOffsets.get(actLower) || { x: 0, y: 0 };
-                model.internalModel.motionManager.groups.idle = authored;
-            } else {
-                model.internalModel.motionManager.groups.idle = this.currentIdleGroup;
-            }
+        // Pose groups played without a matching zone (locked-tap advance, ctl
+        // motion) settle into that pose — synthesize the state so the busy
+        // gate releases when the looping pose motion takes over.
+        const poseMatch = /^(?:idle|touch_idle)(\d+)$/i.exec(actLower);
+        const zoneMatches = engineZones && engineZones.zones.some(z => (z.action || '').toLowerCase() === actLower);
+        if (poseMatch && engineState && !zoneMatches) {
+            engineState.setState(parseInt(poseMatch[1], 10));
         }
+        if (engineState) engineState.onActionFired(actLower);
+        this.syncFromEngineState();
 
         const started = model.motion(action, undefined, 3);
         this.updateUi();
@@ -659,6 +692,7 @@ const StateManager = {
     },
 
     reset() {
+        if (engineState) engineState.reset();
         this.currentState = 0;
         this.activeSequence = null;
         this.currentIdleGroup = this.baseIdleGroup;
@@ -690,24 +724,11 @@ const StateManager = {
                           motions.find(m => m.toLowerCase() === `touch_idle${target}`);
         if (!idleGroup) return false;
 
-        this.currentState = target;
-        this.currentIdleGroup = idleGroup;
-        model.internalModel.motionManager.groups.idle = idleGroup;
-
-        for (const [act, trans] of this.transitions.entries()) {
-            if (trans.targetIdle === target) {
-                const match = act.match(/^([a-z_]+?)(\d+)$/);
-                this.activeSequence = {
-                    prefix: match ? match[1] : 'custom',
-                    step: match ? parseInt(match[2], 10) : 1,
-                    action: trans.action,
-                    nextAction: trans.nextAction,
-                    targetIdle: target
-                };
-                break;
-            }
-        }
-        model.motion(idleGroup, undefined, 3);
+        // the engine owns the bookkeeping and plays the pose motion via its
+        // low-level ctx hooks; the facade mirrors + refreshes the UI
+        const ok = engineState ? engineState.setState(target) : false;
+        if (!ok) return false;
+        this.syncFromEngineState();
         this.updateUi();
         try { buildHotspots(); } catch (err) { console.error('[mizu] buildHotspots error:', err); }
         return true;
@@ -1158,17 +1179,48 @@ function dragsLimitTimeMs(skins, part, action) {
     return Number.isFinite(lt) && lt > 0 ? Math.round(lt * 1000) : 1000;
 }
 
+// nagami-parity counter: "N / M hotspots" where M is the skin's full drags
+// count (param-only entries included, matching the site) and N the visible ones
+function updateHotspotCounter() {
+    const el = document.getElementById('hotspot-counter');
+    if (!el) return;
+    const total = engineZones ? engineZones.meta.total : hotspots.filter(h => h.index >= 0).length;
+    if (!total) { el.hidden = true; return; }
+    const visible = hotspots.filter(h => h.index >= 0 && h.badge.visible).length;
+    el.textContent = `${visible} / ${total} hotspots`;
+    el.hidden = false;
+}
+
 function buildHotspots(skins) {
     if (skins !== undefined) currentSkins = skins;
     if (!model) return;
     badgeLayer.removeChildren();
     hotspots = [];
 
-    const drawableIds = model.internalModel.getDrawableIDs();
     const groups = Object.keys(model.internalModel.settings.motions || {});
     const groupByName = new Map(groups.map(g => [g.toLowerCase(), g]));
 
-    // 1. Primary character touch zones (TouchHead, TouchBody, TouchSpecial)
+    // 1. Zones from the interaction engine (one badge per drags entry whose
+    // part resolves to a drawable). The old per-skin prop zones are gone —
+    // every clickable area now comes from the skin's own data (AC-5.8).
+    const zoneList = engineZones && !engineZones.fallbackUsed ? engineZones.zones : [];
+    for (const zone of zoneList) {
+        hotspots.push({
+            zone,
+            action: zone.action,
+            index: zone.partIndex,
+            part: zone.part,
+            label: zone.label,
+            cooldown: zone.limitTimeMs,
+            lastFired: -Infinity,
+            badge: makeBadge(hotspots.length + 1, String(hotspots.length + 1), 'normal'),
+        });
+    }
+    // The assistant touch parts (head/body/special) always respond in the game,
+    // but many skins don't list them in drags[] — synthesize them additively
+    // unless the data already covers that part or action.
+    const drawableIds = model.internalModel.getDrawableIDs();
+    const covered = new Set(zoneList.flatMap(z => [z.part, z.action].filter(Boolean).map(s => s.toLowerCase())));
     const primaryZones = [
         { part: 'TouchHead', action: 'touch_head', labelKey: 'zoneHead' },
         { part: 'TouchBody', action: 'touch_body', labelKey: 'zoneBody' },
@@ -1177,8 +1229,9 @@ function buildHotspots(skins) {
     for (const z of primaryZones) {
         const act = groupByName.get(z.action.toLowerCase());
         const idx = drawableIds.indexOf(z.part);
-        if (act && idx !== -1) {
+        if (act && idx !== -1 && !covered.has(z.part.toLowerCase()) && !covered.has(z.action.toLowerCase())) {
             hotspots.push({
+                zone: null,
                 action: act,
                 index: idx,
                 part: z.part,
@@ -1190,28 +1243,16 @@ function buildHotspots(skins) {
         }
     }
 
-    // 2. Sequence Next & Reset Hotspots
+    // 2. Sequence Next & Reset badges (anchored, not mesh-hittable)
     if (StateManager.currentState === 0) {
         const drag1 = groupByName.get('touch_drag1');
-        if (drag1) {
+        const startAction = drag1 || groupByName.get('touch_idle1');
+        if (startAction) {
             hotspots.push({
-                action: drag1,
+                zone: null,
+                action: startAction,
                 index: -1,
-                part: 'TouchDrag1',
-                label: t('zoneDragStart'),
-                isSequence: true,
-                badgeOffset: { x: 85, y: -10 },
-                cooldown: 1000,
-                lastFired: -Infinity,
-                badge: makeBadge(hotspots.length + 1, '▶', 'next'),
-            });
-        }
-        const idle1 = groupByName.get('touch_idle1');
-        if (idle1 && !drag1) {
-            hotspots.push({
-                action: idle1,
-                index: -1,
-                part: 'TouchIdle1',
+                part: 'SequenceStart',
                 label: t('zoneDragStart'),
                 isSequence: true,
                 badgeOffset: { x: 85, y: -10 },
@@ -1226,6 +1267,7 @@ function buildHotspots(skins) {
             const match = nextAction.match(/\d+$/);
             const stepNum = match ? match[0] : '';
             hotspots.push({
+                zone: null,
                 action: nextAction,
                 index: -1,
                 part: nextAction,
@@ -1242,6 +1284,7 @@ function buildHotspots(skins) {
                             groups.find(m => m.toLowerCase() === 'touch_idle4') ||
                             StateManager.baseIdleGroup;
         hotspots.push({
+            zone: null,
             action: resetAction,
             index: -1,
             part: 'ResetPose',
@@ -1254,54 +1297,7 @@ function buildHotspots(skins) {
         });
     }
 
-
-    // 3. Environment & Interactive Props Hotspots
-    const isTakao = (MODEL === 'gaoxiong_7');
-    if (isTakao) {
-        // ArtMesh301..305 belong to Part114/115 (Manjuu Casting Acrylic Board)
-        const indices = [179, 180, 181, 182, 183];
-        hotspots.push({
-            action: 'open_prop_menu',
-            index: 179,
-            meshIndices: indices,
-            part: 'ManjuuCastingBoard',
-            label: t('propHover'),
-            isProp: true,
-            cooldown: 400,
-            lastFired: -Infinity,
-            badge: makeBadge(hotspots.length + 1, '📋', 'prop'),
-        });
-    } else {
-        const cm = model.internalModel.coreModel;
-        if (cm?._model?.parts) {
-            const parts = cm._model.parts;
-            for (let p = 0; p < parts.ids.length; p++) {
-                const pid = parts.ids[p].toLowerCase();
-                if (pid.includes('prop') || pid.includes('board') || pid.includes('item') || pid.includes('table') || pid.includes('desk') || pid.includes('phone')) {
-                    const drawables = cm._model.drawables;
-                    const dIndices = [];
-                    for (let d = 0; d < drawables.ids.length; d++) {
-                        if (drawables.parentPartIndices[d] === p) dIndices.push(d);
-                    }
-                    if (dIndices.length > 0) {
-                        hotspots.push({
-                            action: 'open_prop_menu',
-                            index: dIndices[0],
-                            meshIndices: dIndices,
-                            part: parts.ids[p],
-                            label: t('propHoverGeneric'),
-                            isProp: true,
-                            cooldown: 400,
-                            lastFired: -Infinity,
-                            badge: makeBadge(hotspots.length + 1, '⚙️', 'prop'),
-                        });
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
+    updateHotspotCounter();
     if (tipsToggle) tipsToggle.hidden = hotspots.length === 0;
     window.__mizu.hotspots = hotspots;
     if (tipsOn) badgeLayer.visible = true;
@@ -1417,6 +1413,7 @@ function updateHotspots() {
 
     for (const h of hotspots) {
         h.isOffscreen = false;
+        const busyNow = interactionBusy();
         if (blacklisted.has(h.part)) {
             h.badge.visible = false;
             continue;
@@ -1461,8 +1458,11 @@ function updateHotspots() {
         const sway = Math.sin(now * 2.1 + h.badge.num * 0.55);
         h.badge.bob.y = Math.sin(now * 1.3 + h.badge.num * 0.55) * 1.5;
         h.badge.scale.set((active ? 1.15 : 1) * (1 + sway * 0.035) * pop);
-        h.badge.alpha = (active ? 1 : 0.88) * Math.min(pop, 1);
+        // nagami parity: markers go muted while a motion (or interaction voice) plays
+        h.badge.alpha = (active ? 1 : 0.88) * Math.min(pop, 1) * (busyNow ? 0.35 : 1);
     }
+
+    updateHotspotCounter();
 
     // Overlap prevention pass (Spring relaxation: ensures badges never stack)
     const MIN_DIST = 38;
@@ -1512,6 +1512,7 @@ function setupPointerEvents() {
         if (model && gazeFollowEnabled) {
             model.focus(e.clientX, e.clientY);
         }
+        engineTriggers?.onEvent({ type: 'move', x: p.x, y: p.y, t: performance.now() }, null);
         if (placementLocked) {
             const h = findHotspotAtPoint(p);
             setHovered(h);
@@ -1535,18 +1536,25 @@ function setupPointerEvents() {
         const h = findHotspotAtPoint(p);
         if (h) {
             press = null;
-            const now = performance.now();
-            if (now - h.lastFired < h.cooldown) return;
-            if (interactionBusy() && !h.bypassBusy) return;
-            h.lastFired = now;
-            if (h.isProp) {
-                PropManager.toggle();
+            // data zones go through the trigger engine (click recognition,
+            // cooldowns, busy gate, type-6 bypass); the anchored ▶/↺ badges
+            // stay direct UI affordances
+            if (h.zone) {
+                engineTriggers?.onEvent({ type: 'down', x: p.x, y: p.y, t: performance.now() }, h.zone);
                 return;
             }
+            const now = performance.now();
+            if (now - h.lastFired < h.cooldown) return;
+            if (!h.isReset && interactionBusy()) return;
+            h.lastFired = now;
             lastTap = h.action;
-            StateManager.playAction(h.action);
-            const lineKey = window.MizuDialogue?.keyForAction(h.action);
-            if (lineKey) dialogue?.say(lineKey);
+            engineLastAction = h.action;
+            if (h.isReset) StateManager.reset();
+            else {
+                const lineKey = window.MizuDialogue?.keyForAction(h.action);
+                if (lineKey) dialogue?.say(lineKey);
+                StateManager.playAction(h.action);
+            }
             return;
         }
         if (placementLocked) {
@@ -1556,14 +1564,19 @@ function setupPointerEvents() {
                 return;
             }
             model.tap(e.clientX, e.clientY);
-            dialogue?.say('touch');
+            const lineKey = window.MizuDialogue?.keyForAction('touch_body');
+            if (lineKey) dialogue?.say(lineKey);
             return;
         }
         press = { start: p, last: p, dragging: false };
     });
 
-    window.addEventListener('pointerup', () => {
+    window.addEventListener('pointerup', (e) => {
         touchActivity();
+        if (engineTriggers) {
+            const p = canvasPoint(e);
+            engineTriggers.onEvent({ type: 'up', x: p.x, y: p.y, t: performance.now() }, null);
+        }
         if (press && press.dragging) {
             canvas.style.cursor = hoveredHotspot ? 'pointer' : 'grab';
             saveView();
@@ -1790,6 +1803,12 @@ function unloadCurrent() {
     app.view.style.cursor = 'default';
     for (const badge of badgeLayer.removeChildren()) badge.destroy({ children: true });
     hotspots = [];
+    engineZones = null;
+    engineState = null;
+    engineTriggers = null;
+    engineParams = null;
+    engineLastAction = null;
+    if (window.__mizu) window.__mizu.engine = null;
     if (model) {
         app.stage.removeChild(model);
         model.destroy({ children: true, texture: true, baseTexture: true });
@@ -1844,6 +1863,13 @@ async function loadModel(prefab) {
     applyMotionLoopPolicy(model);
     currentSkins = skins;
     StateManager.init(skins);
+    try {
+        setupInteractionEngine(skins);
+    } catch (err) {
+        console.error('[mizu] interaction engine setup failed:', err);
+        engineZones = null; engineState = null; engineTriggers = null; engineParams = null;
+        window.__mizu.engine = null;
+    }
     setupPlacement(skins, placementIndex);
     app.stage.addChild(model);
     if (bgTexture) {
@@ -1967,6 +1993,14 @@ function tick() {
     // 3.5. Prop Manager: smooth facial expression overrides
     PropManager.updateTick(app.ticker.deltaMS);
 
+    // 3.6. Interaction engine frame work: pending click fires, long-press
+    // stepping, param easing and relations
+    engineTriggers?.tick(t0);
+    if (engineParams) {
+        engineParams.tick(app.ticker.deltaMS);
+        engineParams.applyRelations(t0);
+    }
+
     // 3. Dynamic camera tracking with smooth 60fps interpolation
     const tCamStart = performance.now();
     targetCamera = sampleCameraParameters();
@@ -2089,6 +2123,8 @@ function installControlApi() {
                 prefab: MODEL, view, tips: tipsOn, muted: dialogue?.state.mute ?? null,
                 chatter: dialogue?.state.chatter ?? null, groups: motionGroups().length,
                 lastTap, hotspots: hotspots.length, placementLocked,
+                engineZones: engineZones ? engineZones.zones.length : 0,
+                engine: engineState ? engineState.describe() : null,
                 gaze: gazeFollowEnabled, lang: currentLang,
                 fps: Math.round(app.ticker.FPS), maxFPS: app.ticker.maxFPS, perf,
                 state: {
@@ -2114,6 +2150,7 @@ async function main() {
     // probe for render checks (handover A4): page state without pixels
     window.__mizu = {
         app, model: null, bg: null, hotspots, paraRange: null, perf, PropManager,
+        engine: null,
         get tipsOn() { return tipsOn; },
         get view() { return { ...view }; },
         toggleTips: () => tipsToggle.click(),
