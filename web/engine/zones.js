@@ -32,7 +32,8 @@
             smooth: num(entry.smooth),
             revertSmooth: num(entry.revertSmooth),
             revert: num(entry.revert),
-            revertActionIndex: num(entry.revertActionIndex),
+            // real data ships both numbers and boolean true here (qiye_10)
+            revertActionIndex: entry.revertActionIndex ?? null,
             revertIdle: entry.revertIdle ?? null,
             idleFocus: entry.idleFocus ?? null,
             mode: entry.mode ?? null,
