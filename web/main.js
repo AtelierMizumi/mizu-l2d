@@ -387,6 +387,8 @@ let engineState = null;     // idle-pose state machine
 let engineTriggers = null;  // pointer recognition + gating
 let engineParams = null;    // param writer (pointer routing lands in Task 11)
 let engineLastAction = null;
+let paramDragZone = null;   // zone whose parameter follows the pointer
+let paramDragLastT = 0;
 
 function readParam(name) {
     if (!model || !name) return 0;
@@ -493,6 +495,8 @@ function setupInteractionEngine(skins) {
         state: () => (engineState ? engineState.describe() : null),
         get lastAction() { return engineLastAction; },
         canFire: (zone) => (engineState ? engineState.canFire(zone) : true),
+        stats: () => (engineTriggers ? engineTriggers.stats() : null),
+        get paramEngine() { return engineParams; },
     };
 }
 
@@ -693,6 +697,7 @@ const StateManager = {
 
     reset() {
         if (engineState) engineState.reset();
+        if (engineParams) engineParams.resetParams();
         this.currentState = 0;
         this.activeSequence = null;
         this.currentIdleGroup = this.baseIdleGroup;
@@ -1179,14 +1184,14 @@ function dragsLimitTimeMs(skins, part, action) {
     return Number.isFinite(lt) && lt > 0 ? Math.round(lt * 1000) : 1000;
 }
 
-// nagami-parity counter: "N / M hotspots" where M is the skin's full drags
-// count (param-only entries included, matching the site) and N the visible ones
+// nagami-parity counter: "N / M hotspots" counts drags zones only — the
+// synthesized assistant touch zones render badges but stay out of the count
 function updateHotspotCounter() {
     const el = document.getElementById('hotspot-counter');
     if (!el) return;
     const total = engineZones ? engineZones.meta.total : hotspots.filter(h => h.index >= 0).length;
     if (!total) { el.hidden = true; return; }
-    const visible = hotspots.filter(h => h.index >= 0 && h.badge.visible).length;
+    const visible = hotspots.filter(h => h.zone && h.index >= 0 && h.badge.visible).length;
     el.textContent = `${visible} / ${total} hotspots`;
     el.hidden = false;
 }
@@ -1513,6 +1518,11 @@ function setupPointerEvents() {
             model.focus(e.clientX, e.clientY);
         }
         engineTriggers?.onEvent({ type: 'move', x: p.x, y: p.y, t: performance.now() }, null);
+        if (paramDragZone && engineParams) {
+            const now = performance.now();
+            engineParams.onDragMove(paramDragZone, p.x, p.y, now - paramDragLastT);
+            paramDragLastT = now;
+        }
         if (placementLocked) {
             const h = findHotspotAtPoint(p);
             setHovered(h);
@@ -1541,6 +1551,12 @@ function setupPointerEvents() {
             // stay direct UI affordances
             if (h.zone) {
                 engineTriggers?.onEvent({ type: 'down', x: p.x, y: p.y, t: performance.now() }, h.zone);
+                // parameter-drag zones: the pointer writes the zone's param
+                if (engineParams && (h.zone.param || (h.zone.trigger && h.zone.trigger.type === 13))) {
+                    engineParams.onDragStart(h.zone, p.x, p.y);
+                    paramDragZone = h.zone;
+                    paramDragLastT = performance.now();
+                }
                 return;
             }
             const now = performance.now();
@@ -1576,6 +1592,10 @@ function setupPointerEvents() {
         if (engineTriggers) {
             const p = canvasPoint(e);
             engineTriggers.onEvent({ type: 'up', x: p.x, y: p.y, t: performance.now() }, null);
+        }
+        if (paramDragZone && engineParams) {
+            engineParams.onDragEnd(paramDragZone);
+            paramDragZone = null;
         }
         if (press && press.dragging) {
             canvas.style.cursor = hoveredHotspot ? 'pointer' : 'grab';
@@ -1806,8 +1826,10 @@ function unloadCurrent() {
     engineZones = null;
     engineState = null;
     engineTriggers = null;
+    if (engineParams) engineParams.resetParams();
     engineParams = null;
     engineLastAction = null;
+    paramDragZone = null;
     if (window.__mizu) window.__mizu.engine = null;
     if (model) {
         app.stage.removeChild(model);
@@ -1999,6 +2021,7 @@ function tick() {
     if (engineParams) {
         engineParams.tick(app.ticker.deltaMS);
         engineParams.applyRelations(t0);
+        window.__mizu.paramSnapshot = engineParams.snapshot();
     }
 
     // 3. Dynamic camera tracking with smooth 60fps interpolation

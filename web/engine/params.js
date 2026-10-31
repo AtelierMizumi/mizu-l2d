@@ -205,29 +205,43 @@
                 const st = ensureState(zone);
                 if (!st) continue;
                 if (st.writable) {
+                    // Drag writes must land EVERY frame: idle motions and physics
+                    // re-write drag parameters each update, so an easing-only
+                    // writer loses the value on the very next frame (verified on
+                    // beianpudunii_2: one 30 write immediately clobbered to 0).
                     if (st.dragging) {
-                        const next = approach(st.current, st.target, zone.smooth, dtSec);
-                        if (next !== st.current) {
-                            st.current = next;
-                            core.setParam(zone.param, st.current);
-                        }
+                        st.current = approach(st.current, st.target, zone.smooth, dtSec);
+                    } else if (isFiniteNum(zone.revert) && zone.revert < 0) {
+                        // revert -1 = hold forever (the game keeps writing it too)
+                        if (Math.abs(st.target - st.current) > SETTLE_EPS) st.current = st.target;
                     } else if (Math.abs(st.target - st.current) > SETTLE_EPS) {
                         // Reverting. revertActionIndex gate: skip while the current
                         // actionList step differs from the recorded one (the game
                         // re-triggers the param via the action instead).
                         if (st.revertGateStep === null || ctx.actionIndex() === st.revertGateStep) {
-                            const next = approach(st.current, st.target, zone.revertSmooth, dtSec);
-                            if (next !== st.current) {
-                                st.current = next;
-                                core.setParam(zone.param, st.current);
-                            }
+                            st.current = approach(st.current, st.target, zone.revertSmooth, dtSec);
                         }
                     }
+                    core.setParam(zone.param, st.current);
                 }
                 if (zone.listener && typeof zone.param === 'string' && zone.param) {
                     const cur = core.getParam(zone.param);
                     if (isFiniteNum(cur)) evalListener(zone, st, cur);
                 }
+            }
+        }
+
+        // Model switch / Reset Pose: drop every held or reverting drag so the
+        // next model (or the default pose) owns its parameters again.
+        function resetParams() {
+            for (const zone of zoneList) {
+                const st = state.get(zone);
+                if (!st) continue;
+                st.dragging = false;
+                st.writable = false;
+                st.current = null;
+                st.target = null;
+                st.revertGateStep = null;
             }
         }
 
@@ -308,7 +322,18 @@
             }
         }
 
-        return { onDragStart, onDragMove, onDragEnd, tick, applyRelations, activeCount, applyVisibility };
+        // Post-write view for probes/tests: only params this engine currently
+        // owns (writable states), i.e. exactly what the last tick rendered.
+        function snapshot() {
+            const out = {};
+            for (const zone of zoneList) {
+                const st = state.get(zone);
+                if (st && st.writable && typeof zone.param === 'string') out[zone.param] = st.current;
+            }
+            return out;
+        }
+
+        return { onDragStart, onDragMove, onDragEnd, tick, applyRelations, activeCount, applyVisibility, resetParams, snapshot };
     }
 
     root.MizuEngine = root.MizuEngine || {};
