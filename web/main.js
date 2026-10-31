@@ -1207,9 +1207,37 @@ function buildHotspots(skins) {
     if (tipsOn) badgeLayer.visible = true;
 }
 
+// Live mesh bbox of a hotspot in model space, or null when the drawable is
+// not currently visible. Normally refreshed per tick for badge positioning,
+// but hit-testing must never depend on the tips overlay, so findHotspotAtPoint
+// fills missing bounds lazily at click time.
+function computeHotspotBounds(h) {
+    if (!model || (h.index < 0 && !h.meshIndices)) return null;
+    const internal = model.internalModel;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    const indices = h.meshIndices || [h.index];
+    for (const idx of indices) {
+        const verts = internal.getDrawableVertices(idx);
+        if (!verts) continue;
+        for (let i = 0; i < verts.length; i += 2) {
+            const x = verts[i], y = verts[i + 1];
+            if (x < minX) minX = x; if (x > maxX) maxX = x;
+            if (y < minY) minY = y; if (y > maxY) maxY = y;
+        }
+    }
+    if (!(maxX - minX > 5 && maxY - minY > 5)) return null;
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+}
+
 // Find hotspot at canvas coordinates: checks visible badge speech bubble first,
 // then falls back to mesh bounds with generous hit padding.
 function findHotspotAtPoint(canvasPt) {
+    for (const h of hotspots) {
+        if (!h.bounds && (h.index >= 0 || h.meshIndices)) {
+            const b = computeHotspotBounds(h);
+            if (b) h.bounds = b;
+        }
+    }
     if (tipsOn) {
         for (const h of hotspots) {
             if (!h.badge || !h.badge.visible) continue;
@@ -1272,7 +1300,7 @@ function setHovered(h) {
 function updateHotspots() {
     if (!model) return;
     const internal = model.internalModel;
-    
+
     // Stable character anchor (screen-space torso)
     const anchorX = Math.max(80, Math.min(window.innerWidth - 80, model.x));
     const anchorY = Math.max(80, Math.min(window.innerHeight - 80, model.y - 50));
@@ -1295,23 +1323,13 @@ function updateHotspots() {
         }
 
         if (!h.isSequence && !h.isReset && (h.index >= 0 || h.meshIndices)) {
-            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-            const indices = h.meshIndices || [h.index];
-            for (const idx of indices) {
-                const verts = internal.getDrawableVertices(idx);
-                if (!verts) continue;
-                for (let i = 0; i < verts.length; i += 2) {
-                    const x = verts[i], y = verts[i + 1];
-                    if (x < minX) minX = x; if (x > maxX) maxX = x;
-                    if (y < minY) minY = y; if (y > maxY) maxY = y;
-                }
-            }
-            if (maxX - minX > 5 && maxY - minY > 5) {
-                h.bounds = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
-                tempCenter.set((minX + maxX) / 2, (minY + maxY) / 2);
+            const b = computeHotspotBounds(h);
+            if (b) {
+                h.bounds = b;
+                tempCenter.set(b.x + b.w / 2, b.y + b.h / 2);
                 internal.localTransform.apply(tempCenter, tempLocal);
                 model.toGlobal(tempLocal, tempGlobal);
-                
+
                 // Clamp into visible viewport so boundary parts don't incorrectly jump to the cushion
                 const cx = Math.max(35, Math.min(window.innerWidth - 35, tempGlobal.x));
                 const cy = Math.max(35, Math.min(window.innerHeight - 35, tempGlobal.y));
@@ -1829,7 +1847,8 @@ function tick() {
     }
     const tCam = performance.now() - tCamStart;
 
-    // 4. Badges + hit-test bboxes track animated vertices (GATED: ONLY when tips are enabled)
+    // 4. Badges track animated vertices (visual layer only — hit-test bounds
+    // are computed independently, see computeHotspotBounds/findHotspotAtPoint)
     let tHotspots = 0;
     if (tipsOn && hotspots.length) {
         const tHotspotsStart = performance.now();
