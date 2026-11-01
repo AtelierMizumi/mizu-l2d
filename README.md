@@ -1,14 +1,25 @@
 # mizu-l2d
 
-Interactive Live2D (Cubism) wallpaper for niri and other wlr-layer-shell
+[![CI](https://github.com/AtelierMizumi/mizu-l2d/actions/workflows/ci.yml/badge.svg)](https://github.com/AtelierMizumi/mizu-l2d/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/AtelierMizumi/mizu-l2d?color=4ef2d2)](https://github.com/AtelierMizumi/mizu-l2d/releases)
+[![Showcase](https://img.shields.io/badge/Showcase-GitHub%20Pages-4ef2d2?style=flat&logo=github)](https://ateliermizumi.github.io/mizu-l2d/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+Interactive Live2D (Cubism) wallpaper daemon for niri and other wlr-layer-shell
 compositors. A character renders on the background layer in a WebKitGTK view
 and responds to pointer follow, tap hotspots, and camera controls. Paired with
 the [mizu quickshell rice](https://github.com/AtelierMizumi/dotfiles) it also
 drives the desktop theme colors and ships a settings page, model browser, and
 quick-panel tile.
 
-**Status: v0.1.0-beta.** The reference host is the Python/GTK daemon in
-`wall/`. The native C++ renderer in `src/` is parked (PLAN §9-P).
+🌐 **Interactive Showcase & Web Demo:** [https://ateliermizumi.github.io/mizu-l2d/](https://ateliermizumi.github.io/mizu-l2d/)
+
+**Status: v0.2.0-beta.** The reference host is the Python/GTK daemon in
+`wall/`. Key technical highlights:
+- **The Mirror Spike (< 400MB RSS):** Dual-monitor setups run 1 single WebKitWebProcess mirrored via GTK4 `WidgetPaintable`, cutting RAM usage from 970MB to 342MB.
+- **Pause on Cover / Idle:** Streams `niri msg --json event-stream` to automatically freeze the render ticker when desktop workspaces are covered by windows, dropping GPU load to 0%.
+- **Zero-Hardcode Interaction Engine:** Full interaction parity across all 16 trigger types, gesture drags, parameter relations (101-104), and state machines.
+- **Monitor Hotplug:** Seamlessly handles external HDMI connect/disconnect with dynamic source promotion.
 
 Character content is **not** included and must never be committed — bring your
 own and keep it local (see [Licensing](#licensing)).

@@ -1,10 +1,10 @@
 # STATUS — state ledger (update at the END of every work unit)
 
 Last updated: 2026-11-01
-Last agent: Antigravity (merge feat/interaction-parity to master; Phase 2 Mirror Spike <400MB RSS; Phase 3 Pause on Cover/Idle via niri; Phase 4 Hotplug Failover; branch master)
-Next unit: Run wallpaper host live under niri (`systemctl --user start mizu-l2d-wall.service`); Spine Viewer spike implementation (docs/SPINE-SPIKE.md).
+Last agent: Antigravity (merge feat/interaction-parity; Phases 2-4 optimization; GitHub CI/CD, release automation, and showcase site; branch master)
+Next unit: Push commits/tags to origin (`git push origin master` / `git push origin v0.2.0`); configure GitHub Pages source to GitHub Actions in repo settings.
 Owner decisions open: Spine viewer license posture (docs/SPINE-SPIKE.md — GO verdict, Spine Runtimes License has no personal-use exemption; runtime fetched-on-demand, never committed).
-Handover for continuation: **docs/OPTIMIZATION-PLAN.md**, **docs/HANDOVER.md**, **docs/PARITY-SPEC.md**, **docs/PARITY-PLAN.md**, **docs/SPINE-SPIKE.md**.
+Handover for continuation: **docs/superpowers/plans/2026-11-01-github-ci-release-showcase.md**, **docs/OPTIMIZATION-PLAN.md**, **docs/HANDOVER.md**, **docs/PARITY-SPEC.md**, **docs/PARITY-PLAN.md**, **docs/SPINE-SPIKE.md**.
 Test model (owner, 2026-10-30): **gaoxiong_7** replaces aersasi_3 (Alsace, broken) for all
 tests and screenshots; the web viewer's default `?model=` is now gaoxiong_7. See PLAN §9.
 Popup cross-check set (owner, 2026-10-31): antu_2 (Azuchi elevator — primary), benningdun_2, wuqi_3.
@@ -63,6 +63,12 @@ Popup cross-check set (owner, 2026-10-31): antu_2 (Azuchi elevator — primary),
 - Phase 4 Monitor Hotplug (R2d.3 — verified):
   - Added safe `WidgetPaintable` detachment (`set_widget(None)`) during monitor disconnection in `sync_monitors()`.
   - Added automatic source promotion failover if primary `source_key` monitor is disconnected.
+- GitHub CI/CD, Release Automation & Showcase Site (verified):
+  - Lightweight, path-filtered CI pipeline (`.github/workflows/ci.yml`): uses `crate-ci/typos` with project dictionary `_typos.toml` to prevent typo regressions, `dorny/paths-filter` to avoid running redundant jobs, Node JS syntax checks, Python compilation checks, and zero-hardcode grep gate.
+  - Automated Release workflow (`.github/workflows/release.yml` + `scripts/package-release.sh`): triggered on `v*` tags, creates clean distribution archives (`mizu-l2d-X.Y.Z.tar.gz`), generates SHA-256 checksums, and publishes GitHub Releases.
+  - Interactive Showcase website (`showcase/`): dark-mode landing page featuring live interaction canvas simulator (antu_2 elevator buttons, hitzone ripples, speech bubble dialogue, niri cover simulation), architecture visualizer, performance KPI metrics, and Arch Linux installation runbook.
+  - GitHub Pages deployment workflow (`.github/workflows/pages.yml`): automatically deploys `showcase/` to `https://ateliermizumi.github.io/mizu-l2d/` on push to `master`.
+  - README updated to `v0.2.0-beta` with live status badges and direct link to the showcase page.
   - Evidence: antu_2 elevator — clicking the floor panel fires touch_idle1 and switches the idle
     pose (state 1, sequence chained), status/dialogue match nagami; AC-5.4 param drags verified on
     beianpudunii_2 + yuekechengii_3; census (`scripts/census.mjs`) 239 prefabs / 3876 drags /
