@@ -1,52 +1,47 @@
-# mizu-l2d — Handover (2026-10-29)
+# mizu-l2d — Handover (2026-11-01)
 
-Written for: the next coding agent continuing this project (for example GLM 5.3 flash or
-Claude), and the owner who reads along. The owner speaks Vietnamese; this document is in
-English per CLAUDE.md rule 6.
+Written for: the next coding agent continuing this project, and the owner who reads along.
+The owner speaks Vietnamese; this document is in English per repo convention.
 
 Read in this order before doing anything:
-1. This file.
-2. `CLAUDE.md` (agent rules, authoritative).
-3. `docs/SPEC.md` (product spec v3, §12 decisions and amendment).
-4. `docs/PLAN.md` (§0 resume protocol, §5 data formats, §6 pitfalls, §8 work units).
-5. `STATUS.md` (state ledger, discoveries log).
+1. This file (`docs/HANDOVER.md`).
+2. `STATUS.md` (state ledger, discoveries log, benchmarks).
+3. `docs/OPTIMIZATION-PLAN.md` & `docs/superpowers/plans/2026-11-01-github-ci-release-showcase.md`.
+4. `docs/PARITY-SPEC.md` & `docs/PARITY-PLAN.md` (the interaction parity specification).
+5. `docs/SPINE-SPIKE.md` (Spine runtime feasibility research).
 
 ## 1. Owner and environment
 
-- Owner: Minh Thuận Trần. Personal use now. Wants a clean, reusable public extension later.
+- Owner: Minh Thuận Trần (`AtelierMizumi`).
 - Machine: Arch Linux, niri (Wayland), KDE Plasma installed. Two outputs, `eDP-1` and
-  `HDMI-A-1`, 1920×1080 @144 Hz. CPU Intel i5-12500H. GPUs: Intel Iris Xe (integrated)
-  and NVIDIA RTX 3050 Mobile.
-- The agent's sandbox CANNOT: open a Wayland or X display, reach `cdn.jsdelivr.net`,
-  `data.nagami.moe`, `azlassets.nagami.moe`, `azurlane.nagami.moe` or `live2d.com`, use sudo,
-  or talk to a unix socket. Anything in that list must be handed to the owner as a command
-  block, with the expected output described. (Update 2026-10-29, R0.2 unit: a later
-  sandbox DID reach `cdn.jsdelivr.net` — re-test network assumptions per session.)
-- The owner runs commands on the desktop. Before any test that changes the live desktop,
-  follow CLAUDE.md rule 7: switch to an empty workspace first, restore afterwards.
+  `HDMI-A-1`, 1920×1080 @144 Hz. CPU Intel i5-12500H. GPUs: Intel Iris Xe and NVIDIA RTX 3050 Mobile.
+- GitHub Remote: `https://github.com/AtelierMizumi/mizu-l2d.git` (pushed, clean).
+- GitHub Pages Showcase: `https://ateliermizumi.github.io/mizu-l2d/` (live).
+- Current Tag: `v0.2.0-beta` (published on GitHub Releases with clean tarball & sha256).
 
-## 2. What the project is
+## 2. Project Architecture & State
 
-A Live2D character (Azur Lane models for personal use) rendered as an interactive desktop
-background on niri, one surface per output, on the background layer.
+`mizu-l2d` is an ultra-low-overhead Live2D wallpaper daemon for Wayland compositors (niri).
+- Engine: Web page (`web/index.html?wall=1`) driven by PixiJS 6.5.10 + Cubism Web Core,
+  hosted in WebKitGTK 6.0 inside a `gtk4-layer-shell` BACKGROUND window.
+- Host: `wall/mizu-l2d-wall.py` (PyGObject GTK4 application).
+- Features shipped & verified:
+  1. **Interaction Parity (100% verified):** All 16 trigger types, gesture drags, parameter relations (101-104), idle-pose state machine, busy gate protocol (voice & animations never interrupted). Pinned by 48 unit tests (`node --test tests/unit/`) and 12 AC probes (`node tests/probe/run-all.mjs`).
+  2. **The Mirror Spike (R2d.2):** Dual-monitor setups run a single WebKit view mirrored via `Gtk.WidgetPaintable` to secondary outputs, dropping RAM from 970MB to **342MB RSS** (< 400MB budget). Clicks on mirror window forward to primary view.
+  3. **Pause on Cover / Idle (R2b.2):** `NiriWatcher` reads `niri msg --json event-stream`. Freezes `app.ticker` when windows cover the desktop, dropping GPU utilization to 0%.
+  4. **Monitor Hotplug (R2d.3):** Disconnecting HDMI cleans up paintables safely; disconnecting primary promotes mirror to primary source.
+  5. **GitHub CI/CD & Showcase:** Lightweight path-filtered CI (`.github/workflows/ci.yml`), automated releases (`.github/workflows/release.yml`), and modern interactive showcase landing page (`showcase/` deployed to GitHub Pages).
 
-- P0 (now): niri reference host. Engine = web page (pixi.js 6.5.10 +
-  pixi-live2d-display 0.4.0, WebGL) hosted in WebKitGTK 6.0 inside a gtk4-layer-shell
-  window. Python/PyGObject shell (SPEC §4.2).
-- Later: other compositors and desktop environments through thin host adapters
-  (SPEC §3 tiers, §5 host contract).
-- Native C++ Cubism renderer (`src/model/`) is parked (PLAN §9-P). It builds with the
-  Cubism SDK (`CUBISM_AVAILABLE=1`) and loads models, but the rest pose renders wrong.
-  Do not resume it without a reason. Note: its performance may still be measured (S0-perf).
+## 3. Next Tasks (for Next Chat)
 
-## 3. Current goal (owner's latest request)
+1. **Desktop Integration & Production Run:**
+   - Test and keep `systemctl --user enable --now mizu-l2d-wall.service` running live on the user's desktop.
+   - Verify Quickshell wallpaper integration.
+2. **Spine Viewer Spike (P2-6b/6c):**
+   - Review `docs/SPINE-SPIKE.md` to decide on Spine runtime licensing and implement dynamic-skin Spine loader.
+3. **Packaging for Arch Linux:**
+   - Create a `PKGBUILD` for AUR (`mizu-l2d-git` or `mizu-l2d-bin`) using the release archives generated by GitHub Releases.
 
-Build a selection UI with preview. The user picks a Live2D model, and it is downloaded on
-demand. Nothing is mass-downloaded.
-
-Done when:
-- the chosen model is visible on the user's desktop wallpaper, and
-- it is interactive there.
 
 Success metric (owner-confirmed):
 - Loading: 99 of 100 random loads succeed. Pick a random model from the catalog each time.
