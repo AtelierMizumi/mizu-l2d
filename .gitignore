@@ -1,4 +1,5 @@
 build/
+dist/
 third_party/cubism/
 third_party/nlohmann/
 .cache/
