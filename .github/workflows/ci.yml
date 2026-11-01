@@ -15,7 +15,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Check for spelling typos
-        uses: crate-ci/typos@master
+        uses: crate-ci/typos@v1
         with:
           config: _typos.toml
 
@@ -74,7 +74,7 @@ jobs:
           fi
 
       - name: Run fast engine unit tests
-        run: node --test tests/unit/
+        run: node --test "tests/unit/**/*.test.mjs" "tests/unit/*.test.mjs"
 
   python-quality:
     name: Python Compilation & Syntax

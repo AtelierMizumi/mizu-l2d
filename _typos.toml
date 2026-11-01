@@ -1,4 +1,6 @@
 [default.extend-words]
+PNGs = "PNGs"
+PN = "PN"
 moc = "moc"
 moc3 = "moc3"
 niri = "niri"
