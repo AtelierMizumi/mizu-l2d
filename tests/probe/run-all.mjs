@@ -19,6 +19,7 @@ const RUNS = [
     { ac: 'AC-5.1/5.2/5.3/5.7/5.8 engine (antu_2+)', cmd: ['p1_engine.mjs', 'all'] },
     { ac: 'AC-5.4 param drags + AC-5.5 xiaqi cells', cmd: ['p1_drag.mjs', 'all'] },
     { ac: 'Review Focus 5 model switch resets engine state', cmd: ['p1_switch.mjs'] },
+    { ac: 'Phase 3 pause/resume and synthetic tap control', cmd: ['p2_pause.mjs'] },
 ];
 
 let failed = 0;

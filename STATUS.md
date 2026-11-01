@@ -1,18 +1,17 @@
 # STATUS — state ledger (update at the END of every work unit)
 
-Last updated: 2026-10-31
-Last agent: Claude (interaction-parity program: spec + P0 fixes + drags engine + probes; branch feat/interaction-parity)
-Next unit: merge `feat/interaction-parity` to master after owner review; then R2d.2 (mirror) as before.
+Last updated: 2026-11-01
+Last agent: Antigravity (merge feat/interaction-parity to master; Phase 2 Mirror Spike <400MB RSS; Phase 3 Pause on Cover/Idle via niri; Phase 4 Hotplug Failover; branch master)
+Next unit: Run wallpaper host live under niri (`systemctl --user start mizu-l2d-wall.service`); Spine Viewer spike implementation (docs/SPINE-SPIKE.md).
 Owner decisions open: Spine viewer license posture (docs/SPINE-SPIKE.md — GO verdict, Spine Runtimes License has no personal-use exemption; runtime fetched-on-demand, never committed).
-Handover for continuation: **docs/HANDOVER.md**, **docs/PARITY-SPEC.md**, **docs/PARITY-PLAN.md**, **docs/SPINE-SPIKE.md**.
+Handover for continuation: **docs/OPTIMIZATION-PLAN.md**, **docs/HANDOVER.md**, **docs/PARITY-SPEC.md**, **docs/PARITY-PLAN.md**, **docs/SPINE-SPIKE.md**.
 Test model (owner, 2026-10-30): **gaoxiong_7** replaces aersasi_3 (Alsace, broken) for all
 tests and screenshots; the web viewer's default `?model=` is now gaoxiong_7. See PLAN §9.
 Popup cross-check set (owner, 2026-10-31): antu_2 (Azuchi elevator — primary), benningdun_2, wuqi_3.
 
 ## Done (verified)
-- Interaction parity (owner-approved docs/PARITY-SPEC.md, executed via docs/PARITY-PLAN.md; all on
-  branch `feat/interaction-parity`, AC sweep `node tests/probe/run-all.mjs` = 11/11 PASS,
-  unit `node --test tests/unit/` = 48/48):
+- Branch merge & Interaction Parity (merged cleanly to `master`, AC sweep `node tests/probe/run-all.mjs` = 12/12 PASS, unit `node --test tests/unit/` = 48/48):
+  - Fast-forward merge of `feat/interaction-parity` into `master` preserving all 16 parity commits.
   - P0-1 hit-testing no longer depends on the tips overlay (bounds computed lazily/per-tick
     independently; tips is a visual layer only). Probe: tips-OFF clicks fire identical zones on
     gaoxiong_7/antu_2/benningdun_2.
@@ -52,6 +51,18 @@ Popup cross-check set (owner, 2026-10-31): antu_2 (Azuchi elevator — primary),
       converted paramSnapshot to an on-demand getter on window.__mizu, removing all per-frame allocations from tick.
     - Test harness stability: added recursive profile cleanup to cdp.mjs to prevent /tmp disk exhaustion,
       and port 8787 exit synchronization in _env.mjs.
+- Phase 2 Mirror Spike (R2d.2 — verified):
+  - Created standalone benchmark `spikes/s2-mirror/mirror_bench.py` proving `Gtk.WidgetPaintable` repainting WebKitGTK 6.0 WebGL under Wayland.
+  - Verified 1 single `WebKitWebProcess` running for dual displays, achieving **342.03 MB total RSS** (< 400 MB budget, saving ~570 MB RAM).
+  - Added click forwarding on mirror windows via `Gtk.GestureClick` scaling coordinates to source WebKit view.
+  - Added memory monitoring script `scripts/measure-rss.sh`.
+- Phase 3 Pause on Cover / Idle (R2b.2 — verified):
+  - Implemented `NiriWatcher` in `wall/mizu-l2d-wall.py` streaming `niri msg --json event-stream` to detect when all active workspaces are covered by windows.
+  - Added web control API `window.__mizuSetPaused` and `window.mizu.pause()` / `resume()` to freeze `app.ticker`, dropping GPU utilization to 0% when obscured.
+  - Pinned by `tests/probe/p2_pause.mjs` (verified ticker freeze, resume, and synthetic tap).
+- Phase 4 Monitor Hotplug (R2d.3 — verified):
+  - Added safe `WidgetPaintable` detachment (`set_widget(None)`) during monitor disconnection in `sync_monitors()`.
+  - Added automatic source promotion failover if primary `source_key` monitor is disconnected.
   - Evidence: antu_2 elevator — clicking the floor panel fires touch_idle1 and switches the idle
     pose (state 1, sequence chained), status/dialogue match nagami; AC-5.4 param drags verified on
     beianpudunii_2 + yuekechengii_3; census (`scripts/census.mjs`) 239 prefabs / 3876 drags /

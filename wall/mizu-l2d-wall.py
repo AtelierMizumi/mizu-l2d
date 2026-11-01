@@ -152,6 +152,70 @@ def port_open(host, port):
         return False
 
 
+class NiriWatcher(threading.Thread):
+    """Watches niri workspace and window events to determine when the wallpaper
+    is fully covered, allowing the render loop to pause and conserve GPU/CPU."""
+
+    def __init__(self, on_cover_changed):
+        super().__init__(daemon=True)
+        self.on_cover_changed = on_cover_changed
+        self._covered = False
+        self._running = True
+
+    def run(self):
+        try:
+            proc = subprocess.Popen(
+                ["niri", "msg", "--json", "event-stream"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+            )
+        except Exception:
+            return  # niri not available or not on path
+
+        # Initial check
+        self.evaluate_coverage()
+
+        while self._running:
+            line = proc.stdout.readline()
+            if not line:
+                break
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                event = json.loads(line)
+            except Exception:
+                continue
+
+            if any(k in event for k in ("WorkspacesChanged", "WindowsChanged", "WorkspaceActivated")):
+                self.evaluate_coverage()
+
+    def stop(self):
+        self._running = False
+
+    def evaluate_coverage(self):
+        try:
+            ws_res = subprocess.run(
+                ["niri", "msg", "--json", "workspaces"],
+                capture_output=True,
+                text=True,
+                timeout=1.0,
+            )
+            if ws_res.returncode != 0:
+                return
+            workspaces = json.loads(ws_res.stdout)
+            active_ws = [w for w in workspaces if w.get("is_active")]
+            if not active_ws:
+                return
+            all_covered = all(w.get("active_window_id") is not None for w in active_ws)
+            if all_covered != self._covered:
+                self._covered = all_covered
+                GLib.idle_add(self.on_cover_changed, self._covered)
+        except Exception:
+            pass
+
+
 class WallApp(Gtk.Application):
     def __init__(self, url, control, outputs, mirror=False):
         super().__init__(application_id="dev.mizu.l2d.wall")
@@ -161,6 +225,8 @@ class WallApp(Gtk.Application):
         self.mirror = mirror  # one real view, GtkPicture copies on the rest
         self.views = {}  # monitor connector name -> (window, view)
         self.source_key = None  # the connector whose view the mirrors repaint
+        self._paused = False
+        self.niri_watcher = None
 
     def do_activate(self):
         display = Gdk.Display.get_default()
@@ -174,6 +240,8 @@ class WallApp(Gtk.Application):
         self.control.start(self)
         GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, self.quit_on_signal)
         GLib.timeout_add_seconds(LIVE_PUSH_S, self.push_live_tick)
+        self.niri_watcher = NiriWatcher(self.on_cover_changed)
+        self.niri_watcher.start()
         self.hold()
 
     def quit_on_signal(self):
@@ -181,9 +249,23 @@ class WallApp(Gtk.Application):
         return GLib.SOURCE_REMOVE
 
     def do_shutdown(self):
+        if self.niri_watcher:
+            self.niri_watcher.stop()
         # hand the screens back so the owner's static wallpaper and widgets return
         push_live_screens([])
         Gtk.Application.do_shutdown(self)
+
+    def on_cover_changed(self, covered):
+        print(f"[wall] niri coverage: covered={covered}", flush=True)
+        self.set_paused(covered)
+
+    def set_paused(self, paused):
+        if self._paused == paused:
+            return
+        self._paused = paused
+        script = f"window.__mizuSetPaused && window.__mizuSetPaused({str(paused).lower()});"
+        for view in self.views_list():
+            view.evaluate_javascript(script, -1, None, None, None, None, None)
 
     def push_live_tick(self):
         # re-sent periodically: a restarted shell starts with no live screens
@@ -203,15 +285,25 @@ class WallApp(Gtk.Application):
                 current[key] = mon
         for key in list(self.views):
             if key not in current:
-                window, _view = self.views.pop(key)
+                window, view = self.views.pop(key)
                 print(f"[wall] monitor removed: {key}", flush=True)
+                if isinstance(view, Gtk.Picture):
+                    p = view.get_paintable()
+                    if isinstance(p, Gtk.WidgetPaintable):
+                        p.set_widget(None)
+                    view.set_paintable(None)
                 window.destroy()
                 if key == self.source_key:
                     # the mirrored views painted this one; rebuild every surface
                     self.source_key = None
                     for other in list(self.views):
-                        window, _view = self.views.pop(other)
-                        window.destroy()
+                        other_win, other_view = self.views.pop(other)
+                        if isinstance(other_view, Gtk.Picture):
+                            p = other_view.get_paintable()
+                            if isinstance(p, Gtk.WidgetPaintable):
+                                p.set_widget(None)
+                            other_view.set_paintable(None)
+                        other_win.destroy()
         # sorted order picks a stable source screen in mirror mode
         for key in sorted(current):
             if key not in self.views:
@@ -264,7 +356,24 @@ class WallApp(Gtk.Application):
             view = Gtk.Picture()
             view.set_paintable(paintable)
             view.set_content_fit(Gtk.ContentFit.COVER)
+
+            # Mirror click forwarding: forward clicks on secondary screen to primary WebKit view
+            click_gesture = Gtk.GestureClick.new()
+            def on_mirror_click(gesture, n_press, x, y):
+                w_m = view.get_width() or 1920
+                h_m = view.get_height() or 1080
+                w_s = source.get_width() or 1920
+                h_s = source.get_height() or 1080
+                sx = (x / w_m) * w_s
+                sy = (y / h_m) * h_s
+                js = f"window.mizu && window.mizu.tap ? window.mizu.tap({sx}, {sy}) : 0;"
+                source.evaluate_javascript(js, -1, None, None, None, None, None)
+            click_gesture.connect("released", on_mirror_click)
+            view.add_controller(click_gesture)
+
             window.set_child(view)
+        window.present()
+        return window, view
         window.present()
         return window, view
 

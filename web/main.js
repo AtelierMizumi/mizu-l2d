@@ -2150,6 +2150,20 @@ function installControlApi() {
             touchActivity();
             return 'resumed';
         },
+        tap(x, y) {
+            touchActivity();
+            const canvas = app?.view || document.querySelector('canvas');
+            if (!canvas) return 'false';
+            const rect = canvas.getBoundingClientRect();
+            const clientX = rect.left + (x !== undefined ? x : rect.width / 2);
+            const clientY = rect.top + (y !== undefined ? y : rect.height / 2);
+            const opts = { clientX, clientY, bubbles: true, cancelable: true, pointerId: 1, pointerType: 'mouse', isPrimary: true };
+            canvas.dispatchEvent(new PointerEvent('pointerdown', opts));
+            setTimeout(() => {
+                window.dispatchEvent(new PointerEvent('pointerup', opts));
+            }, 50);
+            return 'true';
+        },
         fps(target) {
             if (typeof target === 'number' && target > 0) {
                 app.ticker.maxFPS = target;
@@ -2217,6 +2231,8 @@ function installControlApi() {
             });
         },
     };
+    window.__mizuSyntheticTap = (x, y) => window.mizu.tap(x, y);
+    window.__mizuSetPaused = (paused) => paused ? window.mizu.pause() : window.mizu.resume();
 }
 
 function onResize() {
