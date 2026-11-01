@@ -1,0 +1,34 @@
+[default.extend-words]
+moc = "moc"
+moc3 = "moc3"
+niri = "niri"
+prefabs = "prefabs"
+antu = "antu"
+gaoxiong = "gaoxiong"
+benningdun = "benningdun"
+wuqi = "wuqi"
+nagami = "nagami"
+paintable = "paintable"
+live2d = "live2d"
+azurlane = "azurlane"
+mizu = "mizu"
+AtelierMizumi = "AtelierMizumi"
+layer-shell = "layer-shell"
+wlr = "wlr"
+cubism = "cubism"
+pixi = "pixi"
+xwayland = "xwayland"
+noctalia = "noctalia"
+pinyin = "pinyin"
+chatter = "chatter"
+rAF = "rAF"
+swayidle = "swayidle"
+
+[files]
+extend-exclude = [
+    "web/vendor/**",
+    "third_party/**",
+    "build/**",
+    "tests/unit/engine/fixtures/**",
+    "web/data/**"
+]
