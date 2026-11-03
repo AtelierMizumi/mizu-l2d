@@ -22,8 +22,14 @@ Seamless interactive character rendering on `wlr-layer-shell` background with mu
 
 <div align="center">
 
-### Interactive Live2D Desktop Wallpaper
-*Runs on the `wlr-layer-shell` background layer with pointer follow, hitboxes, and dynamic theming.*
+### Interactive Live2D Desktop Wallpaper & Motion Demo
+*Runs on the `wlr-layer-shell` background layer with pointer follow, physics, hitboxes, and dynamic theming.*
+
+![Live2D Motion Preview](docs/screenshots/model-preview.gif)
+
+*(Interactive model demo with physics & gaze follow. HD Video: [model-preview.mp4](docs/screenshots/model-preview.mp4))*
+
+<br/>
 
 ![mizu-l2d Showcase](docs/screenshots/showcase-hero.png)
 
