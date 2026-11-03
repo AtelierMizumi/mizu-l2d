@@ -116,7 +116,12 @@ def load_config(cli_outputs):
         else:
             print(f"[wall] invalid mirror value in config: {raw_mirror!r}", file=sys.stderr)
 
-    return outputs, model, mirror
+    pause_mode = "fullscreen"
+    raw_pause_mode = wall.get("pause_mode")
+    if raw_pause_mode in ("fullscreen", "never", "off", "covered", "always"):
+        pause_mode = raw_pause_mode
+
+    return outputs, model, mirror, pause_mode
 
 
 def touch_last_used(prefab):
@@ -156,9 +161,10 @@ class NiriWatcher(threading.Thread):
     """Watches niri workspace and window events to determine when the wallpaper
     is fully covered, allowing the render loop to pause and conserve GPU/CPU."""
 
-    def __init__(self, on_cover_changed):
+    def __init__(self, on_cover_changed, pause_mode="fullscreen"):
         super().__init__(daemon=True)
         self.on_cover_changed = on_cover_changed
+        self.pause_mode = pause_mode
         self._covered = False
         self._running = True
 
@@ -195,6 +201,12 @@ class NiriWatcher(threading.Thread):
         self._running = False
 
     def evaluate_coverage(self):
+        if self.pause_mode in ("never", "off"):
+            if self._covered:
+                self._covered = False
+                GLib.idle_add(self.on_cover_changed, False)
+            return
+
         try:
             ws_res = subprocess.run(
                 ["niri", "msg", "--json", "workspaces"],
@@ -205,24 +217,48 @@ class NiriWatcher(threading.Thread):
             if ws_res.returncode != 0:
                 return
             workspaces = json.loads(ws_res.stdout)
-            active_ws = [w for w in workspaces if w.get("is_active")]
+            active_ws = {w["id"]: w for w in workspaces if w.get("is_active")}
             if not active_ws:
                 return
-            all_covered = all(w.get("active_window_id") is not None for w in active_ws)
-            if all_covered != self._covered:
-                self._covered = all_covered
+
+            should_pause = False
+            if self.pause_mode in ("covered", "always"):
+                should_pause = all(w.get("active_window_id") is not None for w in active_ws.values())
+            else:
+                # Default "fullscreen": only pause if a window on active workspace covers full screen
+                out_res = subprocess.run(["niri", "msg", "--json", "outputs"], capture_output=True, text=True, timeout=1.0)
+                outputs = json.loads(out_res.stdout) if out_res.returncode == 0 else {}
+                win_res = subprocess.run(["niri", "msg", "--json", "windows"], capture_output=True, text=True, timeout=1.0)
+                if win_res.returncode == 0:
+                    windows = json.loads(win_res.stdout)
+                    for win in windows:
+                        ws_id = win.get("workspace_id")
+                        if ws_id in active_ws:
+                            ws = active_ws[ws_id]
+                            out_name = ws.get("output")
+                            out = outputs.get(out_name, {}).get("logical", {})
+                            out_w = out.get("width", 1920)
+                            out_h = out.get("height", 1080)
+                            win_size = win.get("layout", {}).get("window_size", [0, 0])
+                            if win_size[0] >= out_w and win_size[1] >= out_h:
+                                should_pause = True
+                                break
+
+            if should_pause != self._covered:
+                self._covered = should_pause
                 GLib.idle_add(self.on_cover_changed, self._covered)
         except Exception:
             pass
 
 
 class WallApp(Gtk.Application):
-    def __init__(self, url, control, outputs, mirror=False):
+    def __init__(self, url, control, outputs, mirror=False, pause_mode="fullscreen"):
         super().__init__(application_id="dev.mizu.l2d.wall")
         self.url = url
         self.control = control
         self.outputs = outputs  # None = every output
         self.mirror = mirror  # one real view, GtkPicture copies on the rest
+        self.pause_mode = pause_mode
         self.views = {}  # monitor connector name -> (window, view)
         self.source_key = None  # the connector whose view the mirrors repaint
         self._paused = False
@@ -240,7 +276,7 @@ class WallApp(Gtk.Application):
         self.control.start(self)
         GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, self.quit_on_signal)
         GLib.timeout_add_seconds(LIVE_PUSH_S, self.push_live_tick)
-        self.niri_watcher = NiriWatcher(self.on_cover_changed)
+        self.niri_watcher = NiriWatcher(self.on_cover_changed, self.pause_mode)
         self.niri_watcher.start()
         self.hold()
 
@@ -258,6 +294,14 @@ class WallApp(Gtk.Application):
     def on_cover_changed(self, covered):
         print(f"[wall] niri coverage: covered={covered}", flush=True)
         self.set_paused(covered)
+
+    def set_pause_mode(self, mode):
+        self.pause_mode = mode
+        if self.niri_watcher:
+            self.niri_watcher.pause_mode = mode
+            self.niri_watcher.evaluate_coverage()
+        elif mode in ("never", "off"):
+            self.set_paused(False)
 
     def set_paused(self, paused):
         if self._paused == paused:
@@ -444,7 +488,19 @@ class Control:
         if cmd == "ping":
             return respond({"ok": True, "pong": True, "outputs": len(views)})
         if cmd == "status":
-            return respond({"ok": True, "outputs": sorted(self.app.views), "views": len(views)})
+            return respond({
+                "ok": True,
+                "outputs": sorted(self.app.views),
+                "views": len(views),
+                "pause_mode": getattr(self.app, "pause_mode", "fullscreen"),
+                "paused": getattr(self.app, "_paused", False),
+            })
+        if cmd in ("pause-mode", "cover-mode"):
+            mode = str(msg.get("mode", "fullscreen")).lower()
+            if mode in ("fullscreen", "never", "off", "covered", "always"):
+                self.app.set_pause_mode(mode)
+                return respond({"ok": True, "pause_mode": self.app.pause_mode})
+            return respond({"ok": False, "error": f"invalid pause mode: {mode}"})
         if cmd == "camera":
             action = msg.get("action")
             if action == "zoom":
@@ -558,9 +614,12 @@ def main():
     parser.add_argument("--url", default=DEFAULT_URL)
     parser.add_argument("--no-serve", action="store_true")
     parser.add_argument("--outputs", help="comma-separated connector names, e.g. eDP-1,HDMI-A-1")
+    parser.add_argument("--pause-mode", choices=["fullscreen", "never", "covered"], default=None, help="when to freeze wallpaper rendering")
     args = parser.parse_args()
     cli = [o.strip() for o in args.outputs.split(",") if o.strip()] if args.outputs else None
-    outputs, model, mirror = load_config(cli)
+    outputs, model, mirror, pause_mode = load_config(cli)
+    if args.pause_mode:
+        pause_mode = args.pause_mode
     url = args.url
     if model:
         parsed = urllib.parse.urlsplit(url)
@@ -573,7 +632,7 @@ def main():
         touch_last_used(model)
     print(f"[wall] outputs: {outputs if outputs is not None else 'all'}, model: {model or 'default'}, mirror: {mirror}", flush=True)
     ensure_server(url, serve=not args.no_serve)
-    app = WallApp(url, Control(), outputs, mirror)
+    app = WallApp(url, Control(), outputs, mirror, pause_mode=pause_mode)
     return app.run(None)
 
 

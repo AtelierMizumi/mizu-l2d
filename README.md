@@ -22,27 +22,14 @@ Seamless interactive character rendering on `wlr-layer-shell` background with mu
 
 <div align="center">
 
-### Interactive Live2D Desktop Wallpaper & Motion Demo
+### 🎬 Real-time 60 FPS Model Showcase (Richelieu — Fleuron of the Waves)
 *Runs on the `wlr-layer-shell` background layer with pointer follow, physics, hitboxes, and dynamic theming.*
 
-![Live2D Motion Preview](docs/screenshots/model-preview.gif)
-
-*(Interactive model demo with physics & gaze follow (Richelieu - Fleuron of the Waves). HD Video: [model-preview.mp4](docs/screenshots/model-preview.mp4))*
+https://github.com/user-attachments/assets/07e76f24-cd71-4f9b-a086-a87aa310689f
 
 <br/>
 
-![mizu-l2d Showcase](docs/screenshots/showcase-hero.png)
-
-</div>
-
-<div align="center">
-
-| | |
-|:---:|:---:|
-| ![Interactive Simulator](docs/screenshots/showcase-simulator.png) | ![Mirror Architecture](docs/screenshots/showcase-architecture.png) |
-| **Quickshell Model Inventory & Controls**<br/>Integrated desktop settings card with real-time preview and dynamic downloader | **The Mirror Spike (< 400MB RAM)**<br/>Dual monitors share 1 WebKit process via GTK4 `WidgetPaintable` |
-| ![Performance Telemetry](docs/screenshots/showcase-telemetry.png) | ![Quickstart & Daemon Controls](docs/screenshots/showcase-runbook.png) |
-| **Instant 0% GPU Pause-on-Cover**<br/>Monitors `niri event-stream` to freeze rendering when covered | **Systemd & Unix Socket IPC**<br/>Control active models, cameras, and poses via simple CLI commands |
+![mizu-l2d Desktop Wallpaper](docs/screenshots/showcase-hero.png)
 
 </div>
 
@@ -51,7 +38,7 @@ Seamless interactive character rendering on `wlr-layer-shell` background with mu
 ## ⚡ Key Highlights
 
 - 🪞 **The Mirror Spike (< 400MB RSS):** Dual-monitor setups run 1 single WebKitWebProcess mirrored via GTK4 `WidgetPaintable`, cutting RAM usage from 970MB down to 342MB.
-- 💤 **Instant Pause on Cover (0% GPU):** Streams `niri msg --json event-stream` to automatically freeze the render ticker when desktop workspaces are occluded by windows.
+- 💤 **Configurable Pause-on-Cover (0% GPU):** Monitors `niri msg --json event-stream` to automatically freeze rendering when an application is fullscreen, with full support for acrylic blur & tiling gaps.
 - 🎯 **100% Data-Driven Parity:** Complete zero-hardcode interaction engine covering all 16 trigger types, gesture drags, parameter relations (101-104), and state machines.
 - 🎨 **Desktop Theme Synchronization:** Pairs with [Mizumi Dotfiles](https://github.com/AtelierMizumi/dotfiles) to extract Material-3 theme tokens and niri focus rings directly from character textures.
 - 🔌 **Dynamic Monitor Hotplug:** Seamlessly adapts to external HDMI connect/disconnect with automatic primary source promotion.

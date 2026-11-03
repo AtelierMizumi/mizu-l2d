@@ -31,6 +31,9 @@ def default_socket():
 def build_message(args):
     if args.cmd in ("ping", "status", "page", "pause", "resume"):
         return {"cmd": args.cmd}
+    if args.cmd in ("pause-mode", "cover-mode"):
+        mode = args.action or (args.values[0] if args.values else "fullscreen")
+        return {"cmd": "pause-mode", "mode": mode}
     if args.cmd == "fps":
         val = int(args.action) if args.action else (int(args.values[0]) if args.values else None)
         return {"cmd": "fps", "fps": val}
@@ -88,7 +91,7 @@ def build_message(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--socket", default=str(default_socket()))
-    parser.add_argument("cmd", choices=["ping", "status", "page", "camera", "motion", "model", "tips", "lock", "state", "tooltip", "gaze", "lang", "pause", "resume", "fps", "eval"])
+    parser.add_argument("cmd", choices=["ping", "status", "page", "camera", "motion", "model", "tips", "lock", "state", "tooltip", "gaze", "lang", "pause", "resume", "fps", "eval", "pause-mode", "cover-mode"])
     parser.add_argument("action", nargs="?", help="camera: zoom|pos|reset")
     parser.add_argument("values", nargs="*")
     args = parser.parse_args()
