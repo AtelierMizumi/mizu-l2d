@@ -25,7 +25,7 @@ Seamless interactive character rendering on `wlr-layer-shell` background with mu
 ### 🎬 Real-time 60 FPS Desktop & Live2D Demo (Richelieu)
 *Runs on the `wlr-layer-shell` background layer with pointer follow, physics, dialogue, and dynamic theming.*
 
-https://github.com/AtelierMizumi/mizu-l2d/releases/download/v0.2.0-beta/model-preview.mp4
+https://github.com/user-attachments/assets/b070eecb-941b-4eb0-bc86-1fac5ce8fecc
 
 <br/>
 
