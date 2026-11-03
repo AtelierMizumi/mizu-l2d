@@ -27,7 +27,7 @@ Seamless interactive character rendering on `wlr-layer-shell` background with mu
 
 ![Live2D Motion Preview](docs/screenshots/model-preview.gif)
 
-*(Interactive model demo with physics & gaze follow. HD Video: [model-preview.mp4](docs/screenshots/model-preview.mp4))*
+*(Interactive model demo with physics & gaze follow (Richelieu - Fleuron of the Waves). HD Video: [model-preview.mp4](docs/screenshots/model-preview.mp4))*
 
 <br/>
 
@@ -40,7 +40,7 @@ Seamless interactive character rendering on `wlr-layer-shell` background with mu
 | | |
 |:---:|:---:|
 | ![Interactive Simulator](docs/screenshots/showcase-simulator.png) | ![Mirror Architecture](docs/screenshots/showcase-architecture.png) |
-| **Interactive Simulator & Hotspots**<br/>Full touch parity across all 16 trigger types and gesture drags | **The Mirror Spike (< 400MB RAM)**<br/>Dual monitors share 1 WebKit process via GTK4 `WidgetPaintable` |
+| **Quickshell Model Inventory & Controls**<br/>Integrated desktop settings card with real-time preview and dynamic downloader | **The Mirror Spike (< 400MB RAM)**<br/>Dual monitors share 1 WebKit process via GTK4 `WidgetPaintable` |
 | ![Performance Telemetry](docs/screenshots/showcase-telemetry.png) | ![Quickstart & Daemon Controls](docs/screenshots/showcase-runbook.png) |
 | **Instant 0% GPU Pause-on-Cover**<br/>Monitors `niri event-stream` to freeze rendering when covered | **Systemd & Unix Socket IPC**<br/>Control active models, cameras, and poses via simple CLI commands |
 

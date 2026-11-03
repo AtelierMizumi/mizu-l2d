@@ -645,3 +645,98 @@ body {
         font-size: 2.4rem;
     }
 }
+
+/* ===== Real Screenshots Showcase Section ===== */
+.screenshots-section {
+    padding: 80px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.screenshots-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 28px;
+    margin-top: 40px;
+}
+
+.screenshot-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.screenshot-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--border-hover);
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45);
+}
+
+.screenshot-img-wrap {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #000;
+    overflow: hidden;
+    position: relative;
+}
+
+.screenshot-img-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.4s ease;
+}
+
+.screenshot-card:hover .screenshot-img-wrap img {
+    transform: scale(1.03);
+}
+
+.screenshot-caption {
+    padding: 20px;
+    flex: 1;
+}
+
+.screenshot-caption h4 {
+    font-size: 1.05rem;
+    color: var(--text-main);
+    margin-bottom: 8px;
+}
+
+.screenshot-caption p {
+    font-size: 0.88rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+/* ===== Real Model Video Players ===== */
+.real-model-video {
+    width: 100%;
+    height: 100%;
+    max-height: 520px;
+    object-fit: contain;
+    background: #040508;
+    border-radius: 14px;
+    display: block;
+}
+
+.runbook-video-wrap {
+    margin-top: 14px;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    background: #040508;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    max-width: 720px;
+}
+
+.runbook-video {
+    width: 100%;
+    height: auto;
+    max-height: 380px;
+    display: block;
+    object-fit: contain;
+}

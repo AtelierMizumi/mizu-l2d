@@ -15,9 +15,9 @@
                 <span class="brand-name">mizu<span class="accent">-l2d</span></span>
             </a>
             <nav class="nav-links">
-                <a href="#features">Features</a>
+                <a href="#screenshots">Showcase</a>
+                <a href="#demo">Live Demo</a>
                 <a href="#architecture">Architecture</a>
-                <a href="#demo">Interactive Simulator</a>
                 <a href="#quickstart">Quickstart</a>
                 <a href="#docs">Docs</a>
                 <a href="https://github.com/AtelierMizumi/mizu-l2d" target="_blank" class="nav-btn-github">
@@ -45,8 +45,8 @@
                 </p>
                 <div class="hero-actions">
                     <a href="#quickstart" class="btn btn-primary">Quickstart Guide</a>
-                    <a href="#demo" class="btn btn-secondary">Try Interactive Simulator</a>
-                    <a href="https://github.com/AtelierMizumi/mizu-l2d" target="_blank" class="btn btn-outline">Source Code</a>
+                    <a href="#demo" class="btn btn-secondary">Real Model Video Demo</a>
+                    <a href="#screenshots" class="btn btn-outline">Desktop Screenshots</a>
                 </div>
 
                 <!-- KPI Metrics -->
@@ -75,28 +75,73 @@
             </div>
         </section>
 
-        <!-- Interactive Simulator Section -->
+        <!-- Real Screenshot Showcase Section -->
+        <section id="screenshots" class="screenshots-section">
+            <div class="container">
+                <div class="section-header">
+                    <h2>Live Desktop Showcase &amp; Settings</h2>
+                    <p>Real-system screenshots captured directly on Arch Linux running Niri Wayland compositor with Richelieu (Fleuron of the Waves) and Quickshell.</p>
+                </div>
+
+                <div class="screenshots-grid">
+                    <div class="screenshot-card">
+                        <div class="screenshot-img-wrap">
+                            <img src="../docs/screenshots/showcase-hero.png" alt="Desktop Live2D Wallpaper (Richelieu)" loading="lazy">
+                        </div>
+                        <div class="screenshot-caption">
+                            <h4>Real Desktop Wallpaper (Richelieu)</h4>
+                            <p>Live WebGL layer-shell rendering behind desktop status bar, widgets, and windows at 144Hz.</p>
+                        </div>
+                    </div>
+
+                    <div class="screenshot-card">
+                        <div class="screenshot-img-wrap">
+                            <img src="../docs/screenshots/showcase-simulator.png" alt="Quickshell Model Browser & Controls" loading="lazy">
+                        </div>
+                        <div class="screenshot-caption">
+                            <h4>Quickshell Desktop Model Browser &amp; Controls</h4>
+                            <p>Integrated settings card with real-time character frame, camera zoom/pan reset, skin search, and dynamic catalog downloader.</p>
+                        </div>
+                    </div>
+
+                    <div class="screenshot-card">
+                        <div class="screenshot-img-wrap">
+                            <img src="../docs/screenshots/showcase-runbook.png" alt="Live Controls & Settings Card" loading="lazy">
+                        </div>
+                        <div class="screenshot-caption">
+                            <h4>Dual-Screen Layout &amp; Dynamic Controls</h4>
+                            <p>Independent vs. mirror output mode, placement lock, gaze tracking, and dynamic palette generation with zero restart.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Interactive Real Model Video Demo Section -->
         <section id="demo" class="demo-section">
             <div class="container">
                 <div class="section-header">
-                    <h2>Interactive Interaction Simulator</h2>
-                    <p>Experience how mizu-l2d handles live touchzones, pose transitions, dialogue cooldowns, and the busy-gate protocol without skin hardcodes.</p>
+                    <h2>Real Model Interactive Demo (Richelieu)</h2>
+                    <p>High-fidelity physics simulation, dynamic gaze following, dialogue synchronization, and touch triggers running with zero hardcoding.</p>
                 </div>
 
                 <div class="simulator-wrapper">
-                    <!-- Simulator Canvas -->
+                    <!-- Real Video Viewport -->
                     <div class="sim-viewport">
-                        <canvas id="sim-canvas" width="600" height="520"></canvas>
+                        <video id="real-video-player" controls autoplay loop muted playsinline class="real-model-video" poster="../docs/screenshots/showcase-hero.png">
+                            <source src="../docs/screenshots/model-preview.mp4" type="video/mp4">
+                            <img src="../docs/screenshots/model-preview.gif" alt="Richelieu Live2D Demo">
+                        </video>
                         
                         <!-- Floating Dialogue Bubble -->
                         <div id="sim-dialogue" class="speech-bubble">
-                            <span id="dialogue-text">Commander, welcome back! The wallpaper host is running green.</span>
+                            <span id="dialogue-text">Commander, the waves are calm today. The wallpaper layer is drawing smoothly!</span>
                         </div>
 
                         <!-- Status Overlay -->
                         <div class="sim-overlay-hud">
-                            <span class="hud-pill" id="hud-model">Model: Azuchi (antu_2)</span>
-                            <span class="hud-pill" id="hud-pose">State: Idle 0 (Base)</span>
+                            <span class="hud-pill" id="hud-model">Model: Richelieu (lisailiu_2)</span>
+                            <span class="hud-pill" id="hud-pose">State: Playing Motion (main_1)</span>
                             <span class="hud-pill" id="hud-fps">FPS: 60.0</span>
                         </div>
                     </div>
@@ -104,12 +149,12 @@
                     <!-- Simulator Controls & Event Stream -->
                     <div class="sim-dashboard">
                         <div class="dash-block">
-                            <h3>Interaction Controls</h3>
+                            <h3>Interaction Triggers</h3>
                             <div class="btn-group">
                                 <button class="dash-btn" id="btn-tap-head">Tap Head</button>
                                 <button class="dash-btn" id="btn-tap-body">Tap Body</button>
-                                <button class="dash-btn" id="btn-tap-elevator">Press Button (Pose Switch)</button>
-                                <button class="dash-btn" id="btn-reset-pose">Reset Pose</button>
+                                <button class="dash-btn" id="btn-tap-special">Special Touch</button>
+                                <button class="dash-btn" id="btn-reset-pose">Play Motion</button>
                             </div>
                         </div>
 
@@ -137,9 +182,10 @@
                                 <button class="dash-btn-sm" id="btn-clear-log">Clear</button>
                             </div>
                             <div class="log-stream" id="sim-log">
-                                <div class="log-entry system">[system] MizuEngine initialized with 48 normalized zones.</div>
+                                <div class="log-entry system">[system] MizuEngine initialized with lisailiu_2 (Richelieu).</div>
                                 <div class="log-entry ok">[ipc] WebKit primary surface connected (eDP-1 @ 144Hz).</div>
                                 <div class="log-entry ok">[mirror] Gtk.WidgetPaintable attached to HDMI-A-1 (342MB RSS).</div>
+                                <div class="log-entry event">[trigger] Main idle motion running with dynamic gaze tracking.</div>
                             </div>
                         </div>
                     </div>
@@ -187,7 +233,7 @@
             </div>
         </section>
 
-        <!-- Quickstart Section -->
+        <!-- Quickstart Section with Video Demo replacing the git clone block -->
         <section id="quickstart" class="quickstart-section">
             <div class="container">
                 <div class="section-header">
@@ -205,14 +251,18 @@
                         </div>
                     </div>
 
-                    <div class="runbook-step">
+                    <!-- Video Demo replaces the previous git clone block -->
+                    <div class="runbook-step video-demo-step">
                         <div class="step-num">2</div>
                         <div class="step-content">
-                            <h4>Clone & Fetch Third-Party Web Libraries</h4>
-                            <p>Download pinned open-source dependencies (PixiJS 6.5.10 & Cubism Web Core):</p>
-                            <pre class="code-block"><code>git clone https://github.com/AtelierMizumi/mizu-l2d.git
-cd mizu-l2d
-bash scripts/fetch-web-deps.sh</code></pre>
+                            <h4>Real Model Motion &amp; Video Preview (Richelieu)</h4>
+                            <p>Real-time physics calculation, smooth eye-gaze tracking, and touch triggers running at 60+ FPS on Wayland:</p>
+                            <div class="runbook-video-wrap">
+                                <video controls autoplay loop muted playsinline class="runbook-video" poster="../docs/screenshots/showcase-hero.png">
+                                    <source src="../docs/screenshots/model-preview.mp4" type="video/mp4">
+                                    <img src="../docs/screenshots/model-preview.gif" alt="Richelieu Live2D Demo">
+                                </video>
+                            </div>
                         </div>
                     </div>
 
