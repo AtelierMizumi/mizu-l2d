@@ -121,7 +121,14 @@ def load_config(cli_outputs):
     if raw_pause_mode in ("fullscreen", "never", "off", "covered", "always"):
         pause_mode = raw_pause_mode
 
-    return outputs, model, mirror, pause_mode
+    fps = 60
+    raw_fps = wall.get("fps")
+    if raw_fps in (30, 60):
+        fps = raw_fps
+    elif isinstance(raw_fps, str) and raw_fps.isdigit() and int(raw_fps) in (30, 60):
+        fps = int(raw_fps)
+
+    return outputs, model, mirror, pause_mode, fps
 
 
 def touch_last_used(prefab):
@@ -617,17 +624,19 @@ def main():
     parser.add_argument("--pause-mode", choices=["fullscreen", "never", "covered"], default=None, help="when to freeze wallpaper rendering")
     args = parser.parse_args()
     cli = [o.strip() for o in args.outputs.split(",") if o.strip()] if args.outputs else None
-    outputs, model, mirror, pause_mode = load_config(cli)
+    outputs, model, mirror, pause_mode, fps = load_config(cli)
     if args.pause_mode:
         pause_mode = args.pause_mode
     url = args.url
-    if model:
-        parsed = urllib.parse.urlsplit(url)
-        q = urllib.parse.parse_qs(parsed.query)
-        if "model" not in q:
-            sep = "&" if parsed.query else ""
-            new_query = f"{parsed.query}{sep}model={urllib.parse.quote(model)}" if parsed.query else f"model={urllib.parse.quote(model)}"
-            url = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, new_query, parsed.fragment))
+    parsed = urllib.parse.urlsplit(url)
+    q = urllib.parse.parse_qs(parsed.query)
+    params = dict(q)
+    if model and "model" not in params:
+        params["model"] = [model]
+    if "fps" not in params and fps:
+        params["fps"] = [str(fps)]
+    new_query = urllib.parse.urlencode(params, doseq=True)
+    url = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, new_query, parsed.fragment))
     if model:
         touch_last_used(model)
     print(f"[wall] outputs: {outputs if outputs is not None else 'all'}, model: {model or 'default'}, mirror: {mirror}", flush=True)

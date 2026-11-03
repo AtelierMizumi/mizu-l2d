@@ -27,6 +27,7 @@ const app = new PIXI.Application({
     resizeTo: window,
     autoDensity: true,
     antialias: false,
+    preserveDrawingBuffer: true,
 });
 // Start capped at 30 FPS quiet desktop mode (SPEC §155)
 app.ticker.maxFPS = 30;
@@ -35,6 +36,7 @@ document.body.appendChild(app.view);
 // ---------- Performance instrumentation & Adaptive Activity (60fps active / 30fps idle) ----------
 let lastActiveTime = performance.now();
 let isDynamicCameraLerping = false;
+let userTargetFps = parseInt(new URLSearchParams(location.search).get('fps'), 10) || 60;
 
 const perf = {
     cubismMs: 0,
@@ -48,9 +50,10 @@ const perf = {
 
 function touchActivity() {
     lastActiveTime = performance.now();
-    if (app.ticker.maxFPS !== 60) {
-        app.ticker.maxFPS = 60;
-        perf.maxFPS = 60;
+    const activeCap = Math.max(30, userTargetFps);
+    if (app.ticker.maxFPS !== activeCap) {
+        app.ticker.maxFPS = activeCap;
+        perf.maxFPS = activeCap;
         perf.mode = 'active';
     }
 }
@@ -1977,7 +1980,9 @@ function tick() {
     const isPointerActive = (t0 - lastActiveTime) < 5000;
     const shouldBeActive = isPlayingMotion || isPointerActive || isDynamicCameraLerping;
 
-    const targetFps = shouldBeActive ? 60 : 30;
+    const idleFps = Math.min(30, userTargetFps);
+    const activeFps = userTargetFps;
+    const targetFps = shouldBeActive ? activeFps : idleFps;
     if (app.ticker.maxFPS !== targetFps) {
         app.ticker.maxFPS = targetFps;
         perf.maxFPS = targetFps;
@@ -2139,6 +2144,11 @@ function installControlApi() {
         },
         perf() {
             return JSON.stringify(perf);
+        },
+        renderFrame(dtMs = 1000 / 60) {
+            app.ticker.update(performance.now());
+            app.renderer.render(app.stage);
+            return app.view.toDataURL("image/jpeg", 0.95);
         },
         pause() {
             app.ticker.stop();
