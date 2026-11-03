@@ -3,9 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>mizu-l2d — Ultra-low-overhead Live2D Wallpaper Daemon</title>
-    <meta name="description" content="Persistent desktop Live2D wallpaper daemon for Wayland and Niri on Arch Linux with GTK4 layer-shell, WebKit mirroring, and zero-hardcode interaction parity.">
+    <title>mizu-l2d — Desktop Live2D Wallpaper Daemon</title>
+    <meta name="description" content="Persistent desktop Live2D wallpaper daemon for Wayland and Niri on Arch Linux with multi-monitor mirroring, zero-overhead idle pausing, and game-accurate interaction parity.">
     <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
     <header class="navbar">
@@ -15,11 +18,10 @@
                 <span class="brand-name">mizu<span class="accent">-l2d</span></span>
             </a>
             <nav class="nav-links">
-                <a href="#screenshots">Showcase</a>
-                <a href="#demo">Live Demo</a>
-                <a href="#architecture">Architecture</a>
+                <a href="#preview">Preview</a>
+                <a href="#showcase">Gallery</a>
+                <a href="#features">Features</a>
                 <a href="#quickstart">Quickstart</a>
-                <a href="#docs">Docs</a>
                 <a href="https://github.com/AtelierMizumi/mizu-l2d" target="_blank" class="nav-btn-github">
                     <svg height="18" width="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
                     GitHub
@@ -37,50 +39,75 @@
                     <span class="status-dot"></span>
                     <span>Wayland Native &bull; Arch Linux &bull; Niri Compositor</span>
                 </div>
-                <h1 class="hero-title">Ultra-low-overhead Live2D Wallpaper Daemon</h1>
+                <h1 class="hero-title">Live2D Wallpaper Daemon<br/><span class="hero-gradient">Made for Wayland</span></h1>
                 <p class="hero-subtitle">
-                    Runs game-accurate Azur Lane Live2D characters seamlessly on the <code>wlr-layer-shell</code> background.
-                    Engineered with GTK4 <code>WidgetPaintable</code> mirror for <strong>&lt; 400MB RAM</strong> on dual 144Hz monitors,
-                    instant <strong>0% GPU</strong> pause-on-cover, and 100% data-driven interaction parity.
+                    Brings interactive Live2D characters directly onto your desktop wallpaper.
+                    Engineered with GTK4 multi-monitor mirroring, automatic pause-on-cover to save battery,
+                    and smooth mouse-following physics.
                 </p>
                 <div class="hero-actions">
-                    <a href="#quickstart" class="btn btn-primary">Quickstart Guide</a>
-                    <a href="#demo" class="btn btn-secondary">Real Model Video Demo</a>
-                    <a href="#screenshots" class="btn btn-outline">Desktop Screenshots</a>
+                    <a href="#quickstart" class="btn btn-primary">Get Started</a>
+                    <a href="#preview" class="btn btn-secondary">Watch Demo Video</a>
+                    <a href="https://github.com/AtelierMizumi/dotfiles" target="_blank" class="btn btn-outline">Explore Rice (Dotfiles)</a>
                 </div>
 
-                <!-- KPI Metrics -->
-                <div class="kpi-grid">
-                    <div class="kpi-card">
-                        <div class="kpi-num">342<span class="unit">MB</span></div>
-                        <div class="kpi-label">Dual-Monitor Total RSS</div>
-                        <div class="kpi-note">vs ~970MB WebKit baseline (-65%)</div>
+                <!-- Highlight Cards -->
+                <div class="highlights-grid">
+                    <div class="highlight-item">
+                        <div class="highlight-icon">🪞</div>
+                        <div class="highlight-title">Ultra-light Dual Screen</div>
+                        <div class="highlight-desc">Mirrors GPU surface across outputs, cutting RAM by 65%.</div>
                     </div>
-                    <div class="kpi-card">
-                        <div class="kpi-num">0<span class="unit">%</span></div>
-                        <div class="kpi-label">GPU Load When Covered</div>
-                        <div class="kpi-note">Auto-pauses via niri event stream</div>
+                    <div class="highlight-item">
+                        <div class="highlight-icon">🔋</div>
+                        <div class="highlight-title">0% GPU on Cover</div>
+                        <div class="highlight-desc">Freezes render ticker instantly when windows occlude screen.</div>
                     </div>
-                    <div class="kpi-card">
-                        <div class="kpi-num">16<span class="unit">types</span></div>
-                        <div class="kpi-label">Drags Trigger Support</div>
-                        <div class="kpi-note">Clicks, long-press, gestures, params</div>
+                    <div class="highlight-item">
+                        <div class="highlight-icon">🎯</div>
+                        <div class="highlight-title">Full Motion & Physics</div>
+                        <div class="highlight-desc">Seamless gaze tracking, physics sway, and touch reactions.</div>
                     </div>
-                    <div class="kpi-card">
-                        <div class="kpi-num">100<span class="unit">%</span></div>
-                        <div class="kpi-label">Test Suite Pass Rate</div>
-                        <div class="kpi-note">48/48 unit &bull; 12/12 AC probes</div>
+                    <div class="highlight-item">
+                        <div class="highlight-icon">🎨</div>
+                        <div class="highlight-title">Dynamic Theming</div>
+                        <div class="highlight-desc">Generates matching desktop palette tokens from skin textures.</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Video Preview Section -->
+        <section id="preview" class="preview-section">
+            <div class="container">
+                <div class="section-header">
+                    <h2>Real Desktop Demonstration</h2>
+                    <p>Recorded directly on Arch Linux running Niri Wayland compositor with Richelieu (Fleuron of the Waves) at 60 FPS.</p>
+                </div>
+
+                <div class="preview-card">
+                    <div class="preview-video-container">
+                        <video id="real-video-player" controls autoplay loop muted playsinline class="real-model-video" poster="assets/video/poster.png">
+                            <source src="assets/video/model-preview.mp4" type="video/mp4">
+                        </video>
+                    </div>
+                    <div class="preview-footer">
+                        <div class="preview-meta">
+                            <span class="preview-tag">60 FPS Real Capture</span>
+                            <span class="preview-tag">Wayland wlr-layer-shell</span>
+                            <span class="preview-tag">Richelieu — Fleuron of the Waves</span>
+                        </div>
                     </div>
                 </div>
             </div>
         </section>
 
         <!-- Real Screenshot Showcase Section -->
-        <section id="screenshots" class="screenshots-section">
+        <section id="showcase" class="screenshots-section">
             <div class="container">
                 <div class="section-header">
-                    <h2>Live Desktop Showcase &amp; Settings</h2>
-                    <p>Real-system screenshots captured directly on Arch Linux running Niri Wayland compositor with Richelieu (Fleuron of the Waves) and Quickshell.</p>
+                    <h2>Desktop Showcase &amp; Settings</h2>
+                    <p>Live captures of the wallpaper running in harmony with the Quickshell desktop interface and system widgets.</p>
                 </div>
 
                 <div class="screenshots-grid">
@@ -89,8 +116,8 @@
                             <img src="../docs/screenshots/showcase-hero.png" alt="Desktop Live2D Wallpaper (Richelieu)" loading="lazy">
                         </div>
                         <div class="screenshot-caption">
-                            <h4>Real Desktop Wallpaper (Richelieu)</h4>
-                            <p>Live WebGL layer-shell rendering behind desktop status bar, widgets, and windows at 144Hz.</p>
+                            <h4>Desktop Layer-Shell Integration</h4>
+                            <p>WebGL rendering seamlessly positioned behind status bars, window columns, and desktop widgets.</p>
                         </div>
                     </div>
 
@@ -99,8 +126,8 @@
                             <img src="../docs/screenshots/showcase-simulator.png" alt="Quickshell Model Browser & Controls" loading="lazy">
                         </div>
                         <div class="screenshot-caption">
-                            <h4>Quickshell Desktop Model Browser &amp; Controls</h4>
-                            <p>Integrated settings card with real-time character frame, camera zoom/pan reset, skin search, and dynamic catalog downloader.</p>
+                            <h4>Integrated Model Browser</h4>
+                            <p>Interactive Quickshell phone setting page with live thumbnail picker, catalog download, and camera adjustment.</p>
                         </div>
                     </div>
 
@@ -109,78 +136,56 @@
                             <img src="../docs/screenshots/showcase-runbook.png" alt="Live Controls & Settings Card" loading="lazy">
                         </div>
                         <div class="screenshot-caption">
-                            <h4>Dual-Screen Layout &amp; Dynamic Controls</h4>
-                            <p>Independent vs. mirror output mode, placement lock, gaze tracking, and dynamic palette generation with zero restart.</p>
+                            <h4>Control &amp; Customization</h4>
+                            <p>Toggle 30/60 FPS refresh rate, gaze follow, placement lock, and sound sync with zero restarts.</p>
                         </div>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- Interactive Real Model Video Demo Section -->
-        <section id="demo" class="demo-section">
+        <!-- Features Section -->
+        <section id="features" class="features-section">
             <div class="container">
                 <div class="section-header">
-                    <h2>Live Desktop &amp; Model Demo Preview</h2>
-                    <p>Real-time physics simulation, dynamic gaze following, audio synchronization, and touch triggers captured on Arch Linux Wayland (Richelieu — Fleuron of the Waves).</p>
-                </div>
-
-                <div class="preview-single-wrapper">
-                    <div class="preview-video-container">
-                        <video id="real-video-player" controls autoplay loop muted playsinline class="real-model-video" poster="assets/video/poster.png">
-                            <source src="assets/video/model-preview.mp4" type="video/mp4">
-                        </video>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Architectural Deep-Dive -->
-        <section id="architecture" class="features-section">
-            <div class="container">
-                <div class="section-header">
-                    <h2>Engineering Breakthroughs</h2>
-                    <p>Designed from first principles to overcome WebKitGTK and Wayland compositor resource limits.</p>
+                    <h2>Built for Daily Desktop Use</h2>
+                    <p>Purpose-engineered to be smooth, energy-efficient, and effortless to run in your daily rice.</p>
                 </div>
 
                 <div class="feature-grid">
                     <div class="feature-card">
                         <div class="feature-icon">🪞</div>
-                        <h3>The Mirror Spike (R2d.2)</h3>
-                        <p>WebKitGTK 6.0 lacks shared web-process capabilities, taking ~450MB per monitor. We pioneer <code>Gtk.WidgetPaintable</code> to mirror the primary WebGL canvas onto secondary outputs, dropping RAM from 970MB to 342MB.</p>
-                        <div class="card-tag">Memory Saver</div>
+                        <h3>Dual-Display Mirroring</h3>
+                        <p>Instead of spawning separate hungry web processes per monitor, GTK4 mirrors the primary WebGL canvas onto secondary outputs with zero extra CPU/GPU work.</p>
                     </div>
 
                     <div class="feature-card">
                         <div class="feature-icon">💤</div>
-                        <h3>Pause on Cover / Idle (R2b.2)</h3>
-                        <p>A background watcher monitors <code>niri msg --json event-stream</code>. When all workspaces are occluded by tiled or fullscreen windows, <code>app.ticker.stop()</code> freezes rendering, eliminating GPU heat.</p>
-                        <div class="card-tag">Power Optimization</div>
+                        <h3>Smart Battery Preservation</h3>
+                        <p>A background listener tracks workspace events. When full windows cover the wallpaper, rendering halts completely down to 0% GPU load.</p>
                     </div>
 
                     <div class="feature-card">
-                        <div class="feature-icon">🎯</div>
-                        <h3>16-Trigger Data-Driven Core</h3>
-                        <p>Zero per-skin hardcodes. Implements parameter relations (101-104), listener bands, idle-pose chains, drag gestures, and busy-gate protocols strictly from public <code>drags[]</code> schema.</p>
-                        <div class="card-tag">Interaction Parity</div>
+                        <div class="feature-icon">👀</div>
+                        <h3>Natural Eye &amp; Head Tracking</h3>
+                        <p>Characters smoothly follow your mouse pointer across your monitors with natural physics dampening and breathing rhythms.</p>
                     </div>
 
                     <div class="feature-card">
                         <div class="feature-icon">🔌</div>
-                        <h3>Hotplug & Dynamic Failover (R2d.3)</h3>
-                        <p>Monitors <code>Gdk.Display</code> topology changes. Unplugging HDMI safely detaches paintables; disconnecting the primary laptop screen seamlessly promotes the external display to primary.</p>
-                        <div class="card-tag">High Availability</div>
+                        <h3>Plug &amp; Play Multi-monitor</h3>
+                        <p>Automatically handles display connection and disconnection on the fly without crashing your session or losing placement.</p>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- Quickstart Section with Video Demo replacing the git clone block -->
+        <!-- Quickstart Section -->
         <section id="quickstart" class="quickstart-section">
             <div class="container">
                 <div class="section-header">
-                    <h2>Quickstart Runbook</h2>
-                    <p>Get up and running in minutes on Arch Linux with Niri or any wlr-layer-shell compositor.</p>
+                    <h2>Setup &amp; Usage</h2>
+                    <p>Simple step-by-step instructions to get up and running on Arch Linux.</p>
                 </div>
 
                 <div class="runbook-card">
@@ -188,67 +193,34 @@
                         <div class="step-num">1</div>
                         <div class="step-content">
                             <h4>Install Runtime Dependencies</h4>
-                            <p>WebKitGTK 6.0 and gtk4-layer-shell are available in official Arch Linux repositories:</p>
-                            <pre class="code-block"><code>sudo pacman -S --needed webkitgtk-6.0 gtk4-layer-shell python-gobject nodejs</code></pre>
+                            <p>Available directly in standard Arch Linux packages:</p>
+                            <pre class="code-block"><code>sudo pacman -S --needed gtk4 gtk4-layer-shell webkitgtk-6.0 python-gobject</code></pre>
                         </div>
                     </div>
 
-                    <!-- Video Demo replaces the previous git clone block -->
-                    <div class="runbook-step video-demo-step">
+                    <div class="runbook-step">
                         <div class="step-num">2</div>
                         <div class="step-content">
-                            <h4>Real Model Motion &amp; Video Preview (Richelieu)</h4>
-                            <p>Real-time physics calculation, smooth eye-gaze tracking, and touch triggers running at 60+ FPS on Wayland:</p>
-                            <div class="runbook-video-wrap">
-                                <video controls autoplay loop muted playsinline class="runbook-video" poster="assets/video/poster.png">
-                                    <source src="assets/video/model-preview.webm" type="video/webm">
-                                    <source src="assets/video/model-preview.mp4" type="video/mp4">
-                                </video>
-                            </div>
+                            <h4>Clone &amp; Vendor Web Libraries</h4>
+                            <p>Download the repo and prepare the web runtime:</p>
+                            <pre class="code-block"><code>git clone https://github.com/AtelierMizumi/mizu-l2d ~/Projects/Tools/mizu-l2d
+cd ~/Projects/Tools/mizu-l2d
+./scripts/fetch-web-deps.sh</code></pre>
                         </div>
                     </div>
 
                     <div class="runbook-step">
                         <div class="step-num">3</div>
                         <div class="step-content">
-                            <h4>Start Wallpaper Daemon</h4>
-                            <p>Run directly or launch as a user systemd service:</p>
-                            <pre class="code-block"><code># Direct test run with dual-monitor mirror mode enabled:
+                            <h4>Launch Daemon</h4>
+                            <p>Run directly in terminal or enable as a systemd user unit:</p>
+                            <pre class="code-block"><code># Test run standalone:
 python3 wall/mizu-l2d-wall.py
 
-# Or enable auto-start service with your desktop session:
+# Or run with systemd user session:
 systemctl --user enable --now mizu-l2d-wall.service</code></pre>
                         </div>
                     </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Documentation Index -->
-        <section id="docs" class="docs-section">
-            <div class="container">
-                <div class="section-header">
-                    <h2>Technical Documentation & Specifications</h2>
-                    <p>Deep-dive specifications, architectural plans, and test methodologies.</p>
-                </div>
-
-                <div class="docs-grid">
-                    <a href="https://github.com/AtelierMizumi/mizu-l2d/blob/master/docs/OPTIMIZATION-PLAN.md" target="_blank" class="doc-link-card">
-                        <h4>OPTIMIZATION-PLAN.md</h4>
-                        <p>Complete engineering specification for the Mirror Spike, Niri pause listener, and hotplug management.</p>
-                    </a>
-                    <a href="https://github.com/AtelierMizumi/mizu-l2d/blob/master/docs/PARITY-SPEC.md" target="_blank" class="doc-link-card">
-                        <h4>PARITY-SPEC.md</h4>
-                        <p>Comprehensive interaction parity specifications covering all 16 trigger types and idle state machines.</p>
-                    </a>
-                    <a href="https://github.com/AtelierMizumi/mizu-l2d/blob/master/docs/SPINE-SPIKE.md" target="_blank" class="doc-link-card">
-                        <h4>SPINE-SPIKE.md</h4>
-                        <p>Feasibility research spike for Pixi-Spine 3.1.2 runtime integration and 225 Azur Lane Spine skins.</p>
-                    </a>
-                    <a href="https://github.com/AtelierMizumi/mizu-l2d/blob/master/STATUS.md" target="_blank" class="doc-link-card">
-                        <h4>STATUS.md</h4>
-                        <p>Living project ledger, benchmark evidence logs, and verification run results.</p>
-                    </a>
                 </div>
             </div>
         </section>
@@ -256,8 +228,8 @@ systemctl --user enable --now mizu-l2d-wall.service</code></pre>
 
     <footer class="footer">
         <div class="container footer-content">
-            <p>Designed & engineered by <a href="https://github.com/AtelierMizumi" target="_blank">AtelierMizumi</a> &bull; MIT License.</p>
-            <p class="footer-sub">Live2D Cubism Core is a proprietary technology of Live2D Inc. All character skins &copy; Manjuu &amp; Yongshi.</p>
+            <p>Created by <a href="https://github.com/AtelierMizumi" target="_blank">AtelierMizumi</a> &bull; Released under MIT License.</p>
+            <p class="footer-sub">Live2D Cubism Core is proprietary technology of Live2D Inc. Character assets copyright Manjuu &amp; Yongshi.</p>
         </div>
     </footer>
 
