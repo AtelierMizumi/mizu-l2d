@@ -121,73 +121,15 @@
         <section id="demo" class="demo-section">
             <div class="container">
                 <div class="section-header">
-                    <h2>Real Model Interactive Demo (Richelieu)</h2>
-                    <p>High-fidelity physics simulation, dynamic gaze following, dialogue synchronization, and touch triggers running with zero hardcoding.</p>
+                    <h2>Live Desktop &amp; Model Demo Preview</h2>
+                    <p>Real-time physics simulation, dynamic gaze following, audio synchronization, and touch triggers captured on Arch Linux Wayland (Richelieu — Fleuron of the Waves).</p>
                 </div>
 
-                <div class="simulator-wrapper">
-                    <!-- Real Video Viewport -->
-                    <div class="sim-viewport">
+                <div class="preview-single-wrapper">
+                    <div class="preview-video-container">
                         <video id="real-video-player" controls autoplay loop muted playsinline class="real-model-video" poster="assets/video/poster.png">
-                            <source src="assets/video/model-preview.webm" type="video/webm">
                             <source src="assets/video/model-preview.mp4" type="video/mp4">
                         </video>
-                        
-                        <!-- Floating Dialogue Bubble -->
-                        <div id="sim-dialogue" class="speech-bubble">
-                            <span id="dialogue-text">Commander, the waves are calm today. The wallpaper layer is drawing smoothly!</span>
-                        </div>
-
-                        <!-- Status Overlay -->
-                        <div class="sim-overlay-hud">
-                            <span class="hud-pill" id="hud-model">Model: Richelieu (lisailiu_2)</span>
-                            <span class="hud-pill" id="hud-pose">State: Playing Motion (main_1)</span>
-                            <span class="hud-pill" id="hud-fps">FPS: 60.0</span>
-                        </div>
-                    </div>
-
-                    <!-- Simulator Controls & Event Stream -->
-                    <div class="sim-dashboard">
-                        <div class="dash-block">
-                            <h3>Interaction Triggers</h3>
-                            <div class="btn-group">
-                                <button class="dash-btn" id="btn-tap-head">Tap Head</button>
-                                <button class="dash-btn" id="btn-tap-body">Tap Body</button>
-                                <button class="dash-btn" id="btn-tap-special">Special Touch</button>
-                                <button class="dash-btn" id="btn-reset-pose">Play Motion</button>
-                            </div>
-                        </div>
-
-                        <div class="dash-block">
-                            <h3>Daemon Simulator Toggles</h3>
-                            <div class="toggle-group">
-                                <label class="toggle-label">
-                                    <input type="checkbox" id="chk-cover">
-                                    <span>Simulate Windows Covering (Pause Ticker)</span>
-                                </label>
-                                <label class="toggle-label">
-                                    <input type="checkbox" id="chk-hints" checked>
-                                    <span>Show Hitzone Badges</span>
-                                </label>
-                                <label class="toggle-label">
-                                    <input type="checkbox" id="chk-mirror">
-                                    <span>Simulate HDMI-A-1 Mirror Surface</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="dash-block event-log-block">
-                            <div class="log-header">
-                                <h3>Live Interaction & IPC Log</h3>
-                                <button class="dash-btn-sm" id="btn-clear-log">Clear</button>
-                            </div>
-                            <div class="log-stream" id="sim-log">
-                                <div class="log-entry system">[system] MizuEngine initialized with lisailiu_2 (Richelieu).</div>
-                                <div class="log-entry ok">[ipc] WebKit primary surface connected (eDP-1 @ 144Hz).</div>
-                                <div class="log-entry ok">[mirror] Gtk.WidgetPaintable attached to HDMI-A-1 (342MB RSS).</div>
-                                <div class="log-entry event">[trigger] Main idle motion running with dynamic gaze tracking.</div>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
