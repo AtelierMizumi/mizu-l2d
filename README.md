@@ -22,10 +22,10 @@ Seamless interactive character rendering on `wlr-layer-shell` background with mu
 
 <div align="center">
 
-### 🎬 Real-time 60 FPS Model Showcase (Richelieu — Fleuron of the Waves)
-*Runs on the `wlr-layer-shell` background layer with pointer follow, physics, hitboxes, and dynamic theming.*
+### 🎬 Real-time 60 FPS Desktop & Live2D Demo (Richelieu)
+*Runs on the `wlr-layer-shell` background layer with pointer follow, physics, dialogue, and dynamic theming.*
 
-https://github.com/user-attachments/assets/7837fc0f-4e84-4f66-b99b-69ee82536004
+https://github.com/AtelierMizumi/mizu-l2d/releases/download/v0.2.0-beta/model-preview.mp4
 
 <br/>
 
