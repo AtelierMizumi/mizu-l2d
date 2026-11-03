@@ -529,3 +529,236 @@ body {
         padding: 24px;
     }
 }
+
+
+/* Lightbox & Screenshot Zoom Viewer */
+.screenshot-card {
+    cursor: pointer;
+    position: relative;
+    user-select: none;
+}
+
+.screenshot-card:focus-visible {
+    outline: 2px solid var(--accent-cyan);
+    outline-offset: 4px;
+}
+
+.zoom-badge {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(10, 13, 20, 0.78);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    color: var(--accent-cyan);
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 20px;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.25s ease, transform 0.25s ease, border-color 0.2s ease, background 0.2s ease;
+    pointer-events: none;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+    z-index: 2;
+}
+
+.screenshot-card:hover .zoom-badge,
+.screenshot-card:focus-visible .zoom-badge {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+body.lightbox-open {
+    overflow: hidden !important;
+}
+
+.lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+}
+
+.lightbox.is-open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.lightbox-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(6, 9, 15, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+}
+
+.lightbox-container {
+    position: relative;
+    z-index: 2;
+    max-width: 94vw;
+    max-height: 92vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transform: scale(0.96);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.lightbox.is-open .lightbox-container {
+    transform: scale(1);
+}
+
+.lightbox-btn {
+    position: absolute;
+    background: rgba(22, 28, 44, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    z-index: 10;
+}
+
+.lightbox-btn:hover {
+    background: rgba(78, 242, 210, 0.18);
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+    transform: scale(1.08);
+}
+
+.lightbox-close {
+    top: -48px;
+    right: 0;
+    width: 40px;
+    height: 40px;
+}
+
+.lightbox-prev {
+    left: -24px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 48px;
+    height: 48px;
+}
+
+.lightbox-prev:hover {
+    transform: translateY(-50%) scale(1.08);
+}
+
+.lightbox-next {
+    right: -24px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 48px;
+    height: 48px;
+}
+
+.lightbox-next:hover {
+    transform: translateY(-50%) scale(1.08);
+}
+
+@media (max-width: 860px) {
+    .lightbox-prev { left: 8px; }
+    .lightbox-next { right: 8px; }
+    .lightbox-close { top: -45px; right: 8px; }
+}
+
+.lightbox-media-wrap {
+    max-width: 90vw;
+    max-height: calc(88vh - 110px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: 14px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.1);
+    background: #000;
+    position: relative;
+    user-select: none;
+}
+
+.lightbox-img {
+    max-width: 90vw;
+    max-height: calc(88vh - 110px);
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    display: block;
+    cursor: zoom-in;
+    transition: transform 0.25s ease;
+}
+
+/* 1:1 original zoom mode */
+.lightbox-media-wrap.is-zoomed {
+    overflow: auto;
+    max-height: 80vh;
+    cursor: grab;
+    display: block;
+}
+
+.lightbox-media-wrap.is-zoomed .lightbox-img {
+    max-width: none;
+    max-height: none;
+    cursor: zoom-out;
+}
+
+.lightbox-meta {
+    margin-top: 14px;
+    width: 100%;
+    max-width: 840px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    background: rgba(18, 24, 38, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    padding: 12px 20px;
+    border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.lightbox-text {
+    flex: 1;
+}
+
+.lightbox-text h3 {
+    font-size: 1.02rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 2px;
+}
+
+.lightbox-text p {
+    font-size: 0.84rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+.lightbox-counter {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--accent-cyan);
+    background: rgba(78, 242, 210, 0.12);
+    border: 1px solid rgba(78, 242, 210, 0.25);
+    padding: 4px 12px;
+    border-radius: 20px;
+    white-space: nowrap;
+}
