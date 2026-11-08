@@ -383,6 +383,7 @@
     function load(next) {
         words = next || null;
         lastKey = null;
+        touchPoolIdx = 0;
         stopAudio();
         clearTimeout(hideTimer);
         if (els?.bubble) els.bubble.classList.remove('show');

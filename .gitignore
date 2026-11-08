@@ -11,3 +11,6 @@ web/assets
 web/shots
 __pycache__/
 *.pyc
+
+# agent tooling local state
+.claude/
