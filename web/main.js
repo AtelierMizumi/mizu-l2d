@@ -1372,9 +1372,27 @@ function findHotspotAtPoint(canvasPt) {
             if (dist <= 28) return h;
         }
     }
+    // Non-mesh zones (isSequence/isReset) have no bounds — when tips are off
+    // their badge is hidden, so hit-test by the badge anchor screen position
+    // computed on demand (same clamp/offset math as updateHotspots).
+    if (!tipsOn && model) {
+        const anchorX = Math.max(80, Math.min(window.innerWidth - 80, model.x));
+        const anchorY = Math.max(80, Math.min(window.innerHeight - 80, model.y - 50));
+        for (const h of hotspots) {
+            if (!h.isSequence && !h.isReset) continue;
+            let ox = h.badgeOffset?.x;
+            let oy = h.badgeOffset?.y;
+            if (ox === undefined) ox = h.isReset ? -90 : 90;
+            if (oy === undefined) oy = h.isReset ? 25 : -20;
+            const targetX = Math.max(40, Math.min(window.innerWidth - 40, anchorX + ox));
+            const targetY = Math.max(40, Math.min(window.innerHeight - 40, anchorY + oy));
+            const dist = Math.hypot(canvasPt.x - targetX, canvasPt.y - targetY);
+            if (dist <= 40) return h;
+        }
+    }
     const mPt = model.toModelPosition(canvasPt, tempModelPoint);
     let best = null;
-    const PADDING = 20;
+    const PADDING = 28; // unified with badge radius 28 — Review Focus #4
     for (const h of hotspots) {
         const b = h.bounds;
         if (!b || b.w <= 0 || b.h <= 0) continue;
@@ -1615,8 +1633,24 @@ function setupPointerEvents() {
         press = { start: p, last: p, dragging: false };
     });
 
+    let lastEmptyTap = 0;
     window.addEventListener('pointerup', (e) => {
         touchActivity();
+        // Tap gesture fallback when hints off (Issue #2 fix):
+        // single tap on empty canvas advances sequence, double-tap resets.
+        const wasDrag = press?.dragging;
+        if (press && !wasDrag) {
+            const nowMs = Date.now();
+            if (nowMs - lastEmptyTap < 400) {
+                lastEmptyTap = 0;
+                if (StateManager.reset) StateManager.reset();
+            } else {
+                lastEmptyTap = nowMs;
+                if (!placementLocked && StateManager.currentState > 0 && StateManager.activeSequence?.nextAction) {
+                    if (!interactionBusy()) StateManager.next();
+                }
+            }
+        }
         if (engineTriggers) {
             const p = canvasPoint(e);
             engineTriggers.onEvent({ type: 'up', x: p.x, y: p.y, t: performance.now() }, null);
