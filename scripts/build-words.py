@@ -37,9 +37,17 @@ SKIN_URL = "https://raw.githubusercontent.com/Fernando2603/AzurLane/main/skin.js
 LUA_LIST_URL = ("https://api.github.com/repos/AzurLaneTools/AzurLaneLuaScripts/contents/"
                 "EN/sharecfg/ship_skin_template_sublist")
 UA = "mizu-l2d-words/0.1"
-# keys the L2D viewer uses; the mapping from game events to keys lives in web/main.js
+# Coverage audit 2026-11: upstream voiceline.json carries ~60 keys per skin
+# (unlock, detail, feeling5, win_mvp, expedition, battle, lose, upgrade, skill,
+# feeling1-4, propose, profile, headtouch, gift_prefer, hp_warning,
+# couple_encourage1-6, *_ex event variants, plus L2D touch/main/login/home).
+# Thorough fix: do not whitelist 12 keys — copy every upstream entry that has a
+# line, so skins like lisailiu_2 stop collapsing drag/idle zones onto one generic
+# touch line. The old KEYS list is kept only for stats ordering.
 KEYS = ["touch", "touch2", "headtouch", "main1", "main2", "main3", "main4",
         "login", "home", "mission", "mission_complete", "mail"]
+# canonical order for deterministic output; uncovered upstream keys sort after
+PREFERRED_ORDER = KEYS
 RECORD_START = re.compile(r"^\s*\[(\d+)\]\s*=\s*\{\s*$")
 FIELD = re.compile(r"^\s*(\w+)\s*=\s*(.*?),?\s*$")
 
@@ -152,8 +160,7 @@ def main():
             stats[source] += 1
             line_map = voiceline.get(str(sid), {})
             words = {}
-            for key in KEYS:
-                entry = line_map.get(key)
+            for key, entry in line_map.items():
                 if entry and entry.get("line"):
                     words[key] = {"line": entry["line"], "audio": entry.get("link")}
                     key_counts[key] += 1

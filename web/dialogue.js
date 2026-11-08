@@ -106,18 +106,39 @@
     // game event -> voice key. Returns null when the skin has no words entry
     // for the action: callers must stay silent instead of playing a line that
     // belongs to a different zone.
+    // Full upstream action space (voiceline.json audit 2026-11): direct keys
+    // + feeling ASM R + drag/idle specific keys + touch pool fallback.
+    const DIRECT_KEYS = new Set([
+        'login', 'home', 'mission', 'mission_complete', 'mail',
+        'wedding', 'change_in', 'change_out', 'feeling', 'asmr',
+        'expedition', 'detail', 'unlock', 'win_mvp', 'battle', 'lose',
+        'upgrade', 'skill', 'propose', 'profile', 'gift_prefer', 'hp_warning',
+        'couple_encourage1', 'couple_encourage2', 'couple_encourage3',
+        'couple_encourage4', 'couple_encourage5', 'couple_encourage6',
+        'headtouch',
+    ]);
+    const TOUCH_POOL = ['touch', 'touch2', 'main1', 'main2', 'main3'];
+    let touchPoolIdx = 0;
+
     function keyForAction(action) {
         if (!action) return null;
         const a = String(action).toLowerCase();
         if (a === 'touch_head' || a === 'headtouch') return 'headtouch';
         if (a === 'touch_body' || a === 'touch') return 'touch';
         if (a === 'touch_special' || a === 'touch2') return 'touch2';
+        // specific gesture/drag voice: e.g. touch_drag7 in words -> that exact key
+        if ((a.startsWith('touch_drag') || a.startsWith('touch_idle')) && words && words[a]) {
+            return a;
+        }
         if (a.startsWith('touch_drag') || a.startsWith('touch_idle')) {
             return (words && words['touch2']) ? 'touch2' : 'touch';
         }
         const m = /^main_?(\d)$/.exec(a);
         if (m) return `main${m[1]}`;
-        if (['login', 'home', 'mission', 'mission_complete', 'mail'].includes(a)) return a;
+        if (/^feeling\d*$/.test(a) || DIRECT_KEYS.has(a)) {
+            if (words && !words[a]) return null;
+            return a;
+        }
         return null;
     }
 
@@ -281,12 +302,22 @@
 
     // says the line for `key`; returns false when the model has no such line
     function say(key, { force = false } = {}) {
-        if (!key) key = 'touch';
+        if (!key) return false;
         if (key === 'touch_body') key = 'touch';
         if (key === 'touch_head') key = 'headtouch';
         if (key === 'touch_special') key = 'touch2';
 
-        let entry = words && words[key] ? words[key] : null;
+        // touch pool rotation: avoid repeating same generic line for touch zones
+        let entry = null;
+        if ((key === 'touch' || key === 'touch2') && words) {
+            const avail = TOUCH_POOL.filter(k => words[k] && words[k].line);
+            if (avail.length > 1) {
+                key = avail[touchPoolIdx % avail.length];
+                touchPoolIdx = (touchPoolIdx + 1) % avail.length;
+                entry = words[key];
+            }
+        }
+        if (!entry) entry = words && words[key] ? words[key] : null;
         if (!entry || !entry.line) return false;
         const now = performance.now();
         if (!force && now - lastSayAt < COOLDOWN_MS) return false;
